@@ -1,0 +1,22 @@
+{
+  "name": "sm-powerbi-function",
+  "version": "1.0.0",
+  "description": "Node.js Azure Function integration layer between SurveyMonkey API and Power BI",
+  "main": "src/functions/*.js",
+  "engines": {
+    "node": ">=18.0.0 <21.0.0"
+  },
+  "scripts": {
+    "start": "func start",
+    "test": "node --test test/*.test.js",
+    "setup-oauth": "node scripts/setupOAuth.js"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "@azure/identity": "^4.4.1",
+    "@azure/keyvault-secrets": "^4.8.0"
+  },
+  "devDependencies": {
+    "azure-functions-core-tools": "^4.0.5950"
+  }
+}

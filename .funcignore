@@ -1,0 +1,11 @@
+.git*
+.vscode
+local.settings.json
+local.settings.json.example
+test/
+docs/
+scripts/
+*.test.js
+README.md
+node_modules/.bin
+.github

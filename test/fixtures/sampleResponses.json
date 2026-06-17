@@ -1,0 +1,58 @@
+[
+  {
+    "id": "resp_fully_answered",
+    "response_status": "completed",
+    "date_created": "2025-01-15T10:30:00Z",
+    "date_modified": "2025-01-15T10:32:00Z",
+    "collector_id": "col_123",
+    "metadata": { "contact": { "language": "en" } },
+    "pages": [
+      {
+        "id": "page_1",
+        "questions": [
+          { "id": "q_satisfaction", "answers": [{ "choice_id": "ch_very" }] },
+          { "id": "q_comments", "answers": [{ "text": "Great visit, thank you." }] },
+          {
+            "id": "q_matrix",
+            "answers": [
+              { "row_id": "row_doctor", "choice_id": "col_good" },
+              { "row_id": "row_nurse", "choice_id": "col_good" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "resp_skipped_question",
+    "response_status": "completed",
+    "date_created": "2025-01-16T09:00:00Z",
+    "date_modified": "2025-01-16T09:05:00Z",
+    "collector_id": "col_123",
+    "metadata": { "contact": { "language": "en" } },
+    "pages": [
+      {
+        "id": "page_1",
+        "questions": [
+          { "id": "q_satisfaction", "answers": [{ "choice_id": "ch_somewhat" }] },
+          { "id": "q_comments", "answers": [] },
+          { "id": "q_matrix", "answers": [{ "row_id": "row_doctor", "choice_id": "col_poor" }] }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "resp_partial",
+    "response_status": "partial",
+    "date_created": "2025-01-17T14:00:00Z",
+    "date_modified": "2025-01-17T14:01:00Z",
+    "collector_id": "col_456",
+    "metadata": { "contact": { "language": "es" } },
+    "pages": [
+      {
+        "id": "page_1",
+        "questions": [{ "id": "q_satisfaction", "answers": [{ "choice_id": "ch_not" }] }]
+      }
+    ]
+  }
+]

@@ -1,0 +1,12 @@
+node_modules/
+local.settings.json
+bin/
+obj/
+.vscode/
+*.log
+.DS_Store
+coverage/
+
+# Never commit anything that looks like a captured token or secret
+*.env
+.env*

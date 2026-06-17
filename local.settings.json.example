@@ -1,0 +1,25 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+
+    "SECRETS_BACKEND": "keyvault",
+
+    "KEY_VAULT_URI": "https://your-vault-name.vault.azure.net/",
+
+    "SM_CLIENT_ID_SECRET_NAME": "surveymonkey-client-id",
+    "SM_CLIENT_SECRET_SECRET_NAME": "surveymonkey-client-secret",
+    "SM_ACCESS_TOKEN_SECRET_NAME": "surveymonkey-access-token",
+
+    "SM_API_BASE_URL": "https://api.surveymonkey.com/v3",
+
+    "SURVEY_DETAILS_CACHE_TTL_MS": "14400000",
+
+    "_comment_local_dev_only": "For LOCAL DEVELOPMENT ONLY you may temporarily set SM_ACCESS_TOKEN_LOCAL_OVERRIDE to skip Key Vault. NEVER commit a real token here. This file itself must never be committed (see .gitignore).",
+    "SM_ACCESS_TOKEN_LOCAL_OVERRIDE": ""
+  },
+  "Host": {
+    "CORS": "*"
+  }
+}

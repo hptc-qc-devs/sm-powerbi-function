@@ -1,0 +1,55 @@
+{
+  "id": "999111",
+  "title": "Patient Satisfaction Survey - Fixture",
+  "pages": [
+    {
+      "id": "page_1",
+      "questions": [
+        {
+          "id": "q_satisfaction",
+          "family": "single_choice",
+          "headings": [{ "heading": "How satisfied are you with your visit?" }],
+          "answers": {
+            "choices": [
+              { "id": "ch_very", "text": "Very satisfied" },
+              { "id": "ch_somewhat", "text": "Somewhat satisfied" },
+              { "id": "ch_not", "text": "Not satisfied" }
+            ]
+          }
+        },
+        {
+          "id": "q_comments",
+          "family": "open_ended",
+          "headings": [{ "heading": "Any additional comments?" }],
+          "answers": {}
+        },
+        {
+          "id": "q_matrix",
+          "family": "matrix",
+          "headings": [{ "heading": "Rate the following staff" }],
+          "answers": {
+            "rows": [
+              { "id": "row_doctor", "text": "Doctor" },
+              { "id": "row_nurse", "text": "Nurse" }
+            ],
+            "choices": [
+              { "id": "col_good", "text": "Good" },
+              { "id": "col_poor", "text": "Poor" }
+            ]
+          }
+        },
+        {
+          "id": "q_newly_added",
+          "family": "single_choice",
+          "headings": [{ "heading": "Were you greeted promptly? (added after fixture responses were collected)" }],
+          "answers": {
+            "choices": [
+              { "id": "ch_yes", "text": "Yes" },
+              { "id": "ch_no", "text": "No" }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
