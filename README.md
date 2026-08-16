@@ -8,10 +8,10 @@ tables, and serves them over HTTPS for Power BI to consume on scheduled
 refresh. You deploy it into your own Azure subscription, so your survey data
 and credentials never leave your infrastructure.
 
-> **Status: early development.** The core data endpoints work today. The
-> setup wizard, storage-backed sync, and one-click deploy are in progress —
-> see [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's coming and in what
-> order. Contributions welcome.
+> **Status: early development.** Direct-mode endpoints and the scheduled sync
+> into Blob Storage work today. The endpoints that *serve* the synced tables
+> to Power BI are next, followed by the setup wizard and one-click deploy —
+> see [`docs/ROADMAP.md`](docs/ROADMAP.md). Contributions welcome.
 
 ## Why this exists
 
@@ -23,16 +23,30 @@ scheduled refresh handle the rest.
 
 ## What you get
 
-- **Flat, analytics-ready output.** SurveyMonkey's deeply nested response
-  JSON becomes tabular rows Power BI can model directly.
-- **Question and choice text resolved.** Answers come back as readable labels,
-  not opaque IDs.
-- **Skipped questions stay visible.** A question a respondent skipped emits a
-  row with a null answer, so completion rates stay computable. A question that
-  didn't exist yet when a response was collected emits nothing.
+- **A model, not a blob of JSON.** Five related tables (`surveys`,
+  `questions`, `choices`, `responses`, `answers`) that Power BI can build
+  relationships across. A single flat table is also produced if you'd rather
+  not model anything.
+- **Numbers that behave like numbers.** Rating scales and weighted choices
+  carry their numeric value, so you can average a satisfaction score without
+  building a lookup table by hand in Power Query.
+- **Matrix and "Other" questions handled properly.** Matrix rows get their own
+  columns instead of being mashed into one string, and "Other (please
+  specify)" keeps both the choice and the text the respondent typed.
+- **Scheduled sync, so refreshes are fast and safe.** Data is pulled from
+  SurveyMonkey on your schedule and written to your own Blob Storage. Power BI
+  reads the stored files, which means refresh frequency in Power BI has no
+  effect on SurveyMonkey API usage — and a SurveyMonkey outage doesn't empty
+  your report.
+- **Optional history.** Turn on snapshots and each sync freezes a dated copy,
+  which is what makes quarter-over-quarter analysis possible — SurveyMonkey
+  itself only ever tells you the current state.
+- **Skipped questions stay visible.** A skipped question emits a flagged row
+  rather than vanishing, so completion rates stay honest. A question added to
+  the survey after a response was collected emits nothing for it.
 - **Credentials in Key Vault.** The Function reads its SurveyMonkey token via
   Managed Identity — no secrets in code, config files, or environment
-  variables.
+  variables. Respondent identifiers are stripped before anything is stored.
 - **Logging that can't leak survey content.** The logger uses a strict
   allowlist: IDs, counts, timings, and status codes only. Question text and
   answer values are never written to logs.
@@ -40,19 +54,23 @@ scheduled refresh handle the rest.
 ## How it works
 
 ```
-Power BI (Desktop / Service, scheduled refresh)
-        |
-        v  HTTPS, function key
-Azure Function (Node.js, Consumption plan)
-   - reads access token from Key Vault (Managed Identity)
-   - calls the SurveyMonkey API (survey details, then responses)
-   - reshapes nested JSON into tabular rows
-        |
-        v
-Returns JSON to the caller
+        timer (default: every 6 hours)
+                 |
+                 v
+        Azure Function
+          - reads the SurveyMonkey token from Key Vault
+          - pulls survey structure + responses (incrementally)
+          - builds the tables, writes CSV
+                 |
+                 v
+        Blob Storage (your storage account)
+                 |
+                 v  HTTPS, function key
+        Power BI scheduled refresh
 ```
 
-See [`docs/architecture.md`](docs/architecture.md) for the detailed design.
+See [`docs/architecture.md`](docs/architecture.md) for the detailed design and
+the reasoning behind it.
 
 ## Prerequisites
 
@@ -113,22 +131,45 @@ curl http://localhost:7071/api/surveys/<survey-id>/flattened-responses
 
 ## Endpoints
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /api/health` | Liveness check; confirms Key Vault is reachable. Does not call SurveyMonkey. |
-| `GET /api/surveys` | Lists surveys visible to your token. Use it to find survey IDs. |
-| `GET /api/surveys/{surveyId}/flattened-responses` | The data feed Power BI consumes. Optional `?modifiedSince=<ISO-8601>` narrows the pull. |
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `GET /api/health` | function key | Liveness check; confirms Key Vault is reachable. Does not call SurveyMonkey. |
+| `GET /api/surveys` | function key | Lists surveys visible to your token. Use it to find survey IDs. |
+| `POST /api/sync` | admin key | Syncs every configured survey now. `?full=true` re-pulls everything. |
+| `POST /api/sync/{surveyId}` | admin key | Syncs one survey now. |
+| `GET /api/surveys/{surveyId}/flattened-responses` | function key | Direct mode: pulls and flattens live, storing nothing. |
+
+Sync also runs automatically on the `SYNC_SCHEDULE` timer (default: every six
+hours).
+
+The sync writes to Blob Storage. **The endpoints that serve those files to
+Power BI are the next milestone** — until then, Power BI connects through
+direct mode, and you can inspect synced output directly in your storage
+account.
 
 ### Output schema
 
-One row per response × question × answer:
+Each sync writes six CSV files per survey:
 
-`snapshot_date`, `survey_id`, `survey_title`, `response_id`,
-`response_status`, `date_created`, `date_modified`, `question_id`,
-`question_text`, `question_type`, `answer_value`, `choice_id`,
-`collector_id`, `language`
+| File | Grain | Notable columns |
+|---|---|---|
+| `surveys.csv` | 1 row per survey | title, language, question_count, response_count |
+| `questions.csv` | 1 row per question | heading, family, subtype, page/position |
+| `choices.csv` | 1 row per choice, matrix row, or "other" option | text, kind, **weight**, is_na |
+| `responses.csv` | 1 row per response | status, collector, dates, time spent, language |
+| `answers.csv` | 1 row per answer | choice_id, row_id, row_text, **value_text**, **value_numeric**, other_text, is_skipped |
+| `flat.csv` | 1 row per answer | everything above joined into one table, for simple use |
 
-A richer star schema with typed numeric values is planned — see the roadmap.
+`value_numeric` is what makes rating scales aggregatable — a 1–5 satisfaction
+question gives you the number, not just the label.
+
+### Storage layout
+
+```
+{surveyId}/latest/{table}.csv        current data
+{surveyId}/snapshots/{date}/...      frozen copies (when history is enabled)
+{surveyId}/state.json                last sync time, watermark, row counts
+```
 
 ## Connecting Power BI
 
@@ -147,11 +188,20 @@ in `docs/powerbi.md`.
 
 1. Create a Function App with a System-Assigned Managed Identity enabled.
 2. Grant that identity `get` and `list` permissions on your Key Vault secrets.
-3. Set the application settings: `KEY_VAULT_URI`, `SM_API_BASE_URL`,
-   `SM_ACCESS_TOKEN_SECRET_NAME`, `SECRETS_BACKEND=keyvault`.
-4. Deploy: `func azure functionapp publish <app-name>`.
-5. Get the function key from the portal (Function App → App keys) and use it
+3. Grant that same identity the **Storage Blob Data Contributor** role on the
+   storage account the sync writes to.
+4. Set the application settings — `KEY_VAULT_URI`, `SM_API_BASE_URL`,
+   `SM_ACCESS_TOKEN_SECRET_NAME`, `SECRETS_BACKEND=keyvault`,
+   `STORAGE_ACCOUNT_URL`, `STORAGE_CONTAINER`, and `SYNC_SCHEDULE`.
+   `local.settings.json.example` documents every setting and its default.
+5. Deploy: `func azure functionapp publish <app-name>`.
+6. Trigger a first sync with `POST /api/sync` (admin key) rather than waiting
+   for the timer.
+7. Get the function key from the portal (Function App → App keys) and use it
    as the Power BI credential.
+
+`SYNC_SCHEDULE` must be set — the timer trigger reads it by name, so the
+Function App won't start without it.
 
 A one-click "Deploy to Azure" button with a Bicep template is on the roadmap.
 
@@ -168,13 +218,15 @@ the tightest coverage.
 
 ## Current limitations
 
-- **No persistent storage yet.** Every refresh re-pulls from SurveyMonkey,
-  which is bounded by SurveyMonkey's rate limits and can time out on large
-  surveys. Storage-backed sync is the next milestone.
-- **No history.** SurveyMonkey only exposes current state, so year-over-year
-  and trend analysis need the snapshot layer on the roadmap.
-- **One survey per request.** Cross-survey dashboards currently need one
-  Power BI query per survey, unioned in Power Query.
+- **Synced files aren't served over HTTP yet.** The sync writes them; the
+  endpoints Power BI would read them from are the next milestone.
+- **First sync of a very large survey can hit the Function timeout.** It's a
+  full pull, and Consumption plans cap at 10 minutes. Later syncs are
+  incremental and much faster. Narrowing `SYNC_SURVEY_IDS` works around it.
+- **Data is as fresh as the last sync.** A six-hour schedule means data up to
+  six hours old. Tighten `SYNC_SCHEDULE` or call `POST /api/sync`.
+- **One survey per request.** Cross-survey dashboards need one query per
+  survey, unioned in Power Query.
 - **No automated token refresh**, because SurveyMonkey doesn't offer it. A
   revoked token surfaces as a clear 502; recovery is re-running the setup
   script.

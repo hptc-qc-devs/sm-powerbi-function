@@ -116,14 +116,14 @@ changed responses, merged into the stored dataset.
 
 ## Milestones
 
-### M1 — Open-source project hygiene
+### M1 — Open-source project hygiene ✅ done
 - `LICENSE` (MIT), README rewrite for a general audience, `CONTRIBUTING.md`,
   `CODE_OF_CONDUCT.md`, `SECURITY.md`, issue/PR templates.
 - CI: GitHub Actions running `npm test` on Node 18 and 20.
 - `CHANGELOG.md`; move `handleSurveyMonkeyError` into `src/lib/`; create the
   `docs/architecture.md` the README references.
 
-### M2 — Data layer: schema builder + sync engine (the core)
+### M2 — Data layer: schema builder + sync engine (the core) ✅ done
 - `src/lib/schema.js`: pure star-schema builder (survey details + responses →
   the five tables), including the typing rules above. Unit-tested with
   fixtures, same style as `flatten.test.js`. Extend fixtures to cover

@@ -31,7 +31,8 @@
   "dependencies": {
     "@azure/functions": "^4.5.0",
     "@azure/identity": "^4.4.1",
-    "@azure/keyvault-secrets": "^4.8.0"
+    "@azure/keyvault-secrets": "^4.8.0",
+    "@azure/storage-blob": "^12.33.0"
   },
   "devDependencies": {
     "azure-functions-core-tools": "^4.0.5950"

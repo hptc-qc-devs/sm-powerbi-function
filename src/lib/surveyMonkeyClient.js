@@ -158,9 +158,15 @@ async function listCollectors(surveyId) {
  * @param {string} surveyId
  * @param {object} opts
  * @param {Date} [opts.modifiedSince] - only responses modified on/after this date
+ * @param {string} [opts.status='completed'] - response status filter. Pass
+ *   'all' to include partial responses, which SurveyMonkey expresses as
+ *   omitting the filter entirely.
  */
-async function getResponsesBulk(surveyId, { modifiedSince } = {}) {
-  const params = { per_page: 100, status: 'completed' };
+async function getResponsesBulk(surveyId, { modifiedSince, status = 'completed' } = {}) {
+  const params = { per_page: 100 };
+  if (status && status !== 'all') {
+    params.status = status;
+  }
   if (modifiedSince) {
     params.start_modified_at = modifiedSince.toISOString();
   }

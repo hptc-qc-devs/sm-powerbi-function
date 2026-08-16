@@ -1,0 +1,126 @@
+{
+  "id": "888222",
+  "title": "Product Feedback Survey - Fixture",
+  "language": "en",
+  "response_count": 4,
+  "date_created": "2025-03-01T09:00:00Z",
+  "date_modified": "2025-03-20T17:45:00Z",
+  "pages": [
+    {
+      "id": "page_1",
+      "questions": [
+        {
+          "id": "q_rating",
+          "family": "matrix",
+          "subtype": "rating",
+          "position": 1,
+          "required": { "text": "This question requires an answer." },
+          "headings": [{ "heading": "<strong>Overall</strong>, how would you rate the product?" }],
+          "answers": {
+            "rows": [{ "id": "row_overall", "text": "Overall rating", "position": 1 }],
+            "choices": [
+              { "id": "ch_1", "text": "Very poor", "position": 1, "weight": 1 },
+              { "id": "ch_2", "text": "Poor", "position": 2, "weight": 2 },
+              { "id": "ch_3", "text": "Neutral", "position": 3, "weight": 3 },
+              { "id": "ch_4", "text": "Good", "position": 4, "weight": 4 },
+              { "id": "ch_5", "text": "Excellent", "position": 5, "weight": 5 },
+              { "id": "ch_na", "text": "Not applicable", "position": 6, "is_na": true }
+            ]
+          }
+        },
+        {
+          "id": "q_channel",
+          "family": "single_choice",
+          "subtype": "vertical",
+          "position": 2,
+          "headings": [{ "heading": "How did you hear about us?" }],
+          "answers": {
+            "choices": [
+              { "id": "ch_search", "text": "Search engine", "position": 1 },
+              { "id": "ch_friend", "text": "From a friend", "position": 2 }
+            ],
+            "other": { "id": "ch_other", "text": "Other (please specify)" }
+          }
+        },
+        {
+          "id": "q_comments",
+          "family": "open_ended",
+          "subtype": "essay",
+          "position": 3,
+          "headings": [{ "heading": "What could we improve?" }],
+          "answers": {}
+        },
+        {
+          "id": "q_age",
+          "family": "open_ended",
+          "subtype": "numerical",
+          "position": 4,
+          "headings": [{ "heading": "How many years have you used the product?" }],
+          "answers": {}
+        }
+      ]
+    },
+    {
+      "id": "page_2",
+      "questions": [
+        {
+          "id": "q_staff_matrix",
+          "family": "matrix",
+          "subtype": "rating",
+          "position": 1,
+          "headings": [{ "heading": "Rate each area" }],
+          "answers": {
+            "rows": [
+              { "id": "row_support", "text": "Customer support", "position": 1 },
+              { "id": "row_docs", "text": "Documentation", "position": 2 }
+            ],
+            "choices": [
+              { "id": "col_good", "text": "Good", "position": 1, "weight": 3 },
+              { "id": "col_ok", "text": "OK", "position": 2, "weight": 2 },
+              { "id": "col_bad", "text": "Bad", "position": 3, "weight": 1 }
+            ]
+          }
+        },
+        {
+          "id": "q_details",
+          "family": "open_ended",
+          "subtype": "multi",
+          "position": 2,
+          "headings": [{ "heading": "Tell us about your team" }],
+          "answers": {
+            "rows": [
+              { "id": "row_role", "text": "Your role", "position": 1 },
+              { "id": "row_size", "text": "Team size", "position": 2 }
+            ]
+          }
+        },
+        {
+          "id": "q_priorities",
+          "family": "matrix",
+          "subtype": "ranking",
+          "position": 3,
+          "headings": [{ "heading": "Rank these priorities" }],
+          "answers": {
+            "rows": [
+              { "id": "row_speed", "text": "Speed", "position": 1 },
+              { "id": "row_price", "text": "Price", "position": 2 }
+            ]
+          }
+        },
+        {
+          "id": "q_added_later",
+          "family": "single_choice",
+          "subtype": "vertical",
+          "position": 4,
+          "headings": [{ "heading": "Would you recommend us?" }],
+          "answers": {
+            "choices": [
+              { "id": "ch_yes", "text": "Yes", "position": 1 },
+              { "id": "ch_no", "text": "No", "position": 2 }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
