@@ -180,6 +180,13 @@ Azurite connection string is ignored.
 | `POST /api/sync` | admin key | Syncs every configured survey now. `?full=true` re-pulls everything. |
 | `POST /api/sync/{surveyId}` | admin key | Syncs one survey now. |
 | `GET /api/surveys/{surveyId}/flattened-responses` | function key | Direct mode: pulls and flattens live, storing nothing. |
+| `GET /api/setup/status` | admin key | Setup state: token, storage, config, what to do next. |
+| `POST /api/setup/token` | admin key | Validate and store a pasted SurveyMonkey token. |
+| `POST /api/setup/oauth/start` | admin key | Begin the guided OAuth flow. |
+| `GET /api/setup/oauth/callback` | *anonymous* | OAuth redirect target; secured by one-time `state`. |
+| `GET /api/setup/surveys` | admin key | Survey browser with selection and sync state. |
+| `GET`/`POST /api/setup/sync-config` | admin key | Read or change which surveys sync, history, retention. |
+| `GET /api/setup/connection-info` | admin key | Power BI URLs and a generated Power Query script. |
 
 Sync also runs automatically on the `SYNC_SCHEDULE` timer (default: every six
 hours).
@@ -188,6 +195,11 @@ hours).
 or `flat`. The data endpoints read files the sync already produced, so they
 make no SurveyMonkey API calls — which is why Power BI can refresh as often as
 you like.
+
+The `/api/setup/*` endpoints let you configure the whole thing over HTTP
+rather than by editing application settings — they're what the setup wizard
+will be built on, and you can drive them with `curl` today. See
+[`docs/setup-api.md`](docs/setup-api.md) for a complete walkthrough.
 
 ### Output schema
 

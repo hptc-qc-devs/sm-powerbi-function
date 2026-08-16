@@ -148,7 +148,7 @@ changed responses, merged into the stored dataset.
 - Live fallback mode: existing `getFlattenedResponses` path retained and
   documented for tiny surveys / no-storage setups.
 
-### M4 — Setup/config API (the wizard's backend)
+### M4 — Setup/config API (the wizard's backend) ✅ done
 All `authLevel: 'admin'` (master key — only the deployer configures):
 - `GET  /api/setup/status` — token stored? valid? last sync per survey?
 - `POST /api/setup/token` — validate pasted token against SM, store via

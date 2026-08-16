@@ -65,6 +65,11 @@ const paths = {
   raw: (surveyId) => `${surveyId}/raw/responses.json`,
   state: (surveyId) => `${surveyId}/state.json`,
   snapshotPrefix: (surveyId) => `${surveyId}/snapshots/`,
+
+  // Setup state. The leading underscore keeps these clear of survey IDs,
+  // which are numeric.
+  config: () => '_setup/config.json',
+  oauthState: () => '_setup/oauth-state.json',
 };
 
 // --- primitives ------------------------------------------------------------

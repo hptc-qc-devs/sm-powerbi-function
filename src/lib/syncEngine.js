@@ -21,18 +21,14 @@ const { getSurveyDetails, getResponsesBulk } = require('./surveyMonkeyClient');
 const { buildTables, buildFlatTable, TABLE_COLUMNS, TABLE_NAMES } = require('./schema');
 const { toCsv } = require('./csv');
 const blobStore = require('./blobStore');
+const setupConfig = require('./setupConfig');
 
-/** Reads sync configuration from app settings, with sensible defaults. */
-function getSyncConfig() {
-  return {
-    surveyIds: (process.env.SYNC_SURVEY_IDS || '')
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean),
-    historyEnabled: process.env.SYNC_HISTORY_ENABLED === 'true',
-    retentionDays: Number(process.env.SYNC_SNAPSHOT_RETENTION_DAYS) || 90,
-    responseStatus: process.env.SYNC_RESPONSE_STATUS || 'completed',
-  };
+/**
+ * Effective sync configuration: whatever the setup wizard saved, layered over
+ * application settings. See setupConfig.js for why it works that way.
+ */
+async function getSyncConfig() {
+  return setupConfig.loadConfig();
 }
 
 /**
@@ -48,7 +44,7 @@ function getSyncConfig() {
  * @returns {Promise<object>} summary of what happened
  */
 async function syncSurvey(surveyId, opts = {}) {
-  const config = getSyncConfig();
+  const config = await getSyncConfig();
   const log = opts.log || noopLogger();
   const startedAt = Date.now();
 

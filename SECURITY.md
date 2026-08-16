@@ -50,8 +50,12 @@ component that ever sees your data or credentials.
   Identity in Azure. Hardcoded credentials or a path that reads secrets from
   an untrusted source **is a vulnerability**.
 - Respecting the configured authorization level on every endpoint. Data
-  endpoints require a function key. An endpoint that exposes survey data
-  anonymously **is a vulnerability**.
+  endpoints require a function key; setup and sync endpoints require the admin
+  key. An endpoint that exposes survey data anonymously **is a vulnerability**.
+- Never returning a stored credential. The setup API validates and stores
+  tokens and OAuth client secrets, and no endpoint echoes any of them back —
+  not in a success response, not in an error, not in a generated Power Query
+  snippet.
 
 **What is your responsibility as the deployer:**
 
@@ -65,6 +69,30 @@ component that ever sees your data or credentials.
   scopes (`surveys_read`, `responses_read`); this software never needs write
   access.
 - Keeping your deployment updated.
+
+**The one anonymous endpoint, and why:**
+
+`GET /api/setup/oauth/callback` is the only endpoint that does not require a
+key. It has to be: SurveyMonkey redirects the user's browser to it after they
+approve access, and a redirect cannot carry a function key. Azure's own key
+parameter is `code`, which collides with the OAuth authorization code, so that
+route is closed too.
+
+What protects it instead is the `state` parameter, which is:
+
+- 256 bits of randomness, generated per flow
+- stored server-side and compared with a timing-safe comparison
+- single-use — redeeming it deletes it, so a captured callback URL cannot be
+  replayed
+- valid for ten minutes
+
+A request without matching state does nothing at all: no code exchange, no
+secret read, no token write. Every failure returns the same message, so the
+endpoint does not reveal whether a flow is in progress. All other setup
+endpoints require the **admin (master) key**.
+
+If you find a way to make that endpoint act without valid state, that **is a
+vulnerability** — please report it.
 
 **Known non-issues:**
 

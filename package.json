@@ -2,7 +2,7 @@
   "name": "sm-powerbi-function",
   "version": "0.1.0",
   "description": "Self-hosted Azure Function that connects SurveyMonkey surveys to Power BI",
-  "main": "src/functions/*.js",
+  "main": "src/functions/**/*.js",
   "license": "MIT",
   "repository": {
     "type": "git",

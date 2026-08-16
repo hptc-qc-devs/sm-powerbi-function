@@ -19,6 +19,10 @@
 const { getSecret } = require('./secretsClient');
 
 const SM_API_BASE_URL = process.env.SM_API_BASE_URL || 'https://api.surveymonkey.com/v3';
+
+// OAuth lives outside the versioned API path, so it is derived separately
+// rather than by string-munging SM_API_BASE_URL.
+const SM_AUTH_BASE_URL = process.env.SM_AUTH_BASE_URL || 'https://api.surveymonkey.com';
 const SM_ACCESS_TOKEN_SECRET_NAME =
   process.env.SM_ACCESS_TOKEN_SECRET_NAME || 'surveymonkey-access-token';
 
@@ -173,11 +177,126 @@ async function getResponsesBulk(surveyId, { modifiedSince, status = 'completed' 
   return getAllPages(`/surveys/${surveyId}/responses/bulk`, { params });
 }
 
+/**
+ * Checks a token by calling GET /users/me with it.
+ *
+ * Takes the token as an argument rather than reading it from the secret
+ * store, because the setup flow has to validate a token *before* deciding to
+ * store it. Returns account details on success so the wizard can show the
+ * user which SurveyMonkey account they just connected — a useful confirmation
+ * when someone has several.
+ *
+ * @param {string} token
+ * @returns {Promise<{valid: boolean, account?: object, status?: number, message?: string}>}
+ */
+async function validateToken(token) {
+  if (!token || typeof token !== 'string' || token.trim() === '') {
+    return { valid: false, status: 400, message: 'No token was provided.' };
+  }
+
+  let response;
+  try {
+    response = await fetch(`${SM_API_BASE_URL}/users/me`, {
+      headers: { Authorization: `Bearer ${token.trim()}`, Accept: 'application/json' },
+    });
+  } catch (err) {
+    return { valid: false, status: 502, message: `Could not reach SurveyMonkey: ${err.message}` };
+  }
+
+  if (response.status === 401) {
+    return {
+      valid: false,
+      status: 401,
+      message:
+        'SurveyMonkey rejected this token (401). Check you copied the whole access token ' +
+        'from your Developer App, and that the app has not been deauthorized.',
+    };
+  }
+
+  if (response.status === 403) {
+    return {
+      valid: false,
+      status: 403,
+      message:
+        'The token was accepted but lacks the required scopes (403). Grant the app ' +
+        '"View Surveys" and "View Responses" permissions, then issue a new token.',
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      valid: false,
+      status: response.status,
+      message: `SurveyMonkey returned ${response.status} when checking the token.`,
+    };
+  }
+
+  const body = await response.json().catch(() => ({}));
+  return {
+    valid: true,
+    account: {
+      id: body.id || null,
+      username: body.username || null,
+      email: body.email || null,
+      account_type: body.account_type || null,
+    },
+  };
+}
+
+/**
+ * Exchanges an OAuth authorization code for an access token.
+ *
+ * SurveyMonkey issues no refresh token, so what comes back is a long-lived
+ * access token and this exchange is the only way to obtain one
+ * programmatically. The authorization code expires after a few minutes.
+ */
+async function exchangeCodeForToken({ clientId, clientSecret, redirectUri, code }) {
+  const response = await fetch(`${SM_AUTH_BASE_URL}/oauth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      code,
+      grant_type: 'authorization_code',
+    }),
+  });
+
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok || !body.access_token) {
+    const err = new Error(
+      body.error_description ||
+        body.error ||
+        `SurveyMonkey rejected the authorization code (${response.status}).`
+    );
+    err.name = 'OAuthExchangeError';
+    err.statusCode = response.status;
+    throw err;
+  }
+
+  return body.access_token;
+}
+
+/** Builds the URL the user visits to authorize the app. */
+function buildAuthorizeUrl({ clientId, redirectUri, state }) {
+  const url = new URL(`${SM_AUTH_BASE_URL}/oauth/authorize`);
+  url.searchParams.set('client_id', clientId);
+  url.searchParams.set('redirect_uri', redirectUri);
+  url.searchParams.set('response_type', 'code');
+  if (state) url.searchParams.set('state', state);
+  return url.toString();
+}
+
 module.exports = {
   listSurveys,
   getSurveyDetails,
   listCollectors,
   getResponsesBulk,
+  validateToken,
+  exchangeCodeForToken,
+  buildAuthorizeUrl,
   SurveyMonkeyAuthError,
   SurveyMonkeyScopeError,
 };

@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A setup API** covering the whole configuration flow over HTTP, so a
+  deployment can be configured without editing application settings by hand.
+  Documented in [`docs/setup-api.md`](docs/setup-api.md).
+  - `GET /api/setup/status` reports token, storage and config state as
+    independent checks and names the next step, because a missing token, a
+    revoked token and unreachable storage need different fixes.
+  - `POST /api/setup/token` validates a pasted token against SurveyMonkey
+    before storing it, so a typo fails immediately rather than as a failed
+    sync hours later. A rejected token is never written.
+  - `POST /api/setup/oauth/start` and `GET /api/setup/oauth/callback`
+    implement the guided OAuth flow. The callback is anonymous by necessity —
+    SurveyMonkey redirects a browser to it — and is secured by a 256-bit,
+    single-use, ten-minute `state` compared in constant time.
+  - `GET /api/setup/surveys` lists surveys annotated with selection and sync
+    state.
+  - `GET`/`POST /api/setup/sync-config` reads and writes sync configuration.
+  - `GET /api/setup/connection-info` returns Power BI URLs and a generated
+    Power Query script, with the base URL derived from the request.
+- **Runtime-changeable configuration.** Sync settings now live in blob storage
+  layered over application settings, since a Function cannot rewrite its own
+  app settings. `SYNC_SCHEDULE` is the exception — it binds at host startup,
+  so saving it returns `pending_app_settings` rather than implying it applied.
+
 - **Data endpoints that serve the synced tables to Power BI**, completing the
   pipeline. `GET /api/surveys/{surveyId}/data/{table}` returns a synced table
   without calling SurveyMonkey at all, so Power BI refresh frequency no longer

@@ -60,7 +60,7 @@ app.timer('syncTimer', {
  * none are configured.
  */
 async function resolveSurveyIds(log) {
-  const { surveyIds } = getSyncConfig();
+  const { surveyIds } = await getSyncConfig();
   if (surveyIds.length > 0) return surveyIds;
 
   const surveys = await listSurveys();
