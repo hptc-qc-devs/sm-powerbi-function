@@ -68,8 +68,52 @@ Tests use Node's built-in test runner (`node --test`) — no framework
 dependency. Add fixtures under `test/fixtures/` and keep them small,
 synthetic, and free of any real respondent data.
 
-Contributions that fix a flattening bug should include a fixture that fails
-before the fix and passes after.
+Contributions that fix a transformation bug should include a fixture that
+fails before the fix and passes after.
+
+### Unit tests
+
+```bash
+npm test
+```
+
+These run offline against fixtures — no Azure resources, no network. The
+transformation and sync-orchestration logic is covered here, with the storage
+layer substituted by in-memory fakes.
+
+### Integration tests
+
+The storage layer is also tested against a real Azure Storage API using
+[Azurite](https://learn.microsoft.com/azure/storage/common/storage-use-azurite),
+which is installed as a dev dependency. In one terminal:
+
+```bash
+npm run azurite
+```
+
+and in another:
+
+```bash
+npm run test:integration
+```
+
+These verify what the in-memory fakes cannot: container creation, not-found
+handling, listing, prefix deletion, and a complete sync writing real blobs.
+Without `STORAGE_CONNECTION_STRING` set they skip automatically, which is why
+plain `npm test` stays offline.
+
+`npm audit` reports advisories in Azurite's transitive dependencies. Azurite
+is a local test emulator and is never deployed; `npm audit --omit=dev` (what
+matters for a deployment) is clean.
+
+### Azure Functions Core Tools
+
+Core Tools is **not** a project dependency — install it
+[globally](https://learn.microsoft.com/azure/azure-functions/functions-run-local)
+as the README's prerequisites describe. It's a large platform-specific binary,
+it's already a documented prerequisite, and pinning it in `package.json` made
+`npm install` fail on any machine that couldn't reach the Microsoft CDN. You
+only need it to run the Function itself (`npm start`), not to run the tests.
 
 ## Reporting security issues
 

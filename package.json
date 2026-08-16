@@ -26,6 +26,8 @@
   "scripts": {
     "start": "func start",
     "test": "node --test test/*.test.js",
+    "test:integration": "STORAGE_CONNECTION_STRING=UseDevelopmentStorage=true node --test test/*.test.js",
+    "azurite": "azurite-blob --location .azurite --blobPort 10000 --skipApiVersionCheck",
     "setup-oauth": "node scripts/setupOAuth.js"
   },
   "dependencies": {
@@ -35,6 +37,6 @@
     "@azure/storage-blob": "^12.33.0"
   },
   "devDependencies": {
-    "azure-functions-core-tools": "^4.0.5950"
+    "azurite": "^3.34.0"
   }
 }

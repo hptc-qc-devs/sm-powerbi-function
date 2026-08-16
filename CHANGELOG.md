@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CSV serialization** (`src/lib/csv.js`) with RFC 4180 quoting, UTF-8 BOM,
   and neutralization of spreadsheet formula injection in respondent-entered
   text.
+- Integration tests covering the storage layer and a complete sync against a
+  real Azure Storage API via Azurite. They skip unless
+  `STORAGE_CONNECTION_STRING` is set, so `npm test` stays offline; CI runs
+  both suites.
 - MIT license, making the project open source.
 - Contributor documentation: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
   `SECURITY.md` (including a threat model for self-hosted deployments).
@@ -52,6 +56,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`azure-functions-core-tools` is no longer a dev dependency.** It is a
+  large platform-specific binary, it was already a documented prerequisite to
+  install globally, and pinning it made `npm install` fail outright on any
+  machine that could not reach the Microsoft CDN. Install it globally to run
+  `npm start`; it is not needed for the tests.
 - `getResponsesBulk` accepts a `status` option instead of hardcoding
   `completed`, so partial responses can be included via
   `SYNC_RESPONSE_STATUS`.
