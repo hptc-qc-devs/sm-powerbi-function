@@ -1,12 +1,9 @@
 /**
  * secretsClient.js
  *
- * Abstraction over secret storage. SOW 2.5 leaves the final backend choice
- * open ("Azure Key Vault OR an approved enterprise secrets management
- * solution, e.g. OnePassword — pending IT guidance"). Every other module in
- * this project calls getSecret(name) and never knows which backend is behind
- * it. If IT mandates a different secrets manager later, only this file
- * changes.
+ * Abstraction over secret storage. Every other module calls getSecret(name)
+ * and never knows which backend is behind it, so an organization that
+ * mandates a different secrets manager only has to change this file.
  *
  * Current backend: Azure Key Vault, authenticated via DefaultAzureCredential.
  *   - In Azure: resolves to the Function App's System-Assigned Managed

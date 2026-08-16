@@ -1,8 +1,8 @@
 /**
  * flatten.js
  *
- * Converts SurveyMonkey's nested response JSON into the flat schema locked
- * in for Phase 1: one row per response x question x answer.
+ * Converts SurveyMonkey's nested response JSON into the flat schema:
+ * one row per response x question x answer.
  *
  *   snapshot_date, survey_id, survey_title, response_id, response_status,
  *   date_created, date_modified, question_id, question_text, question_type,
