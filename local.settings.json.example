@@ -16,6 +16,20 @@
 
     "SURVEY_DETAILS_CACHE_TTL_MS": "14400000",
 
+    "_comment_storage": "Where synced survey tables are written. STORAGE_ACCOUNT_URL takes precedence when set, and is the supported path in Azure - the Function App's managed identity needs the 'Storage Blob Data Contributor' role on the account. Leave it EMPTY locally so STORAGE_CONNECTION_STRING (Azurite) is used instead; setting both means the connection string is ignored.",
+    "STORAGE_ACCOUNT_URL": "",
+    "STORAGE_CONNECTION_STRING": "UseDevelopmentStorage=true",
+    "STORAGE_CONTAINER": "survey-data",
+
+    "_comment_sync": "SYNC_SCHEDULE is an NCRONTAB expression in UTC and must be set, since the timer trigger reads it by name. The default below is every 6 hours. Leave SYNC_SURVEY_IDS empty to sync every survey the token can see, or list specific IDs comma-separated to stay well inside SurveyMonkey's daily API quota.",
+    "SYNC_SCHEDULE": "0 0 */6 * * *",
+    "SYNC_SURVEY_IDS": "",
+    "SYNC_RESPONSE_STATUS": "completed",
+
+    "_comment_history": "Turn SYNC_HISTORY_ENABLED on to freeze a dated snapshot on every sync, which is what makes quarter-over-quarter and year-over-year analysis possible. Snapshots older than the retention window are pruned automatically.",
+    "SYNC_HISTORY_ENABLED": "false",
+    "SYNC_SNAPSHOT_RETENTION_DAYS": "90",
+
     "_comment_local_dev_only": "For LOCAL DEVELOPMENT ONLY you may temporarily set SM_ACCESS_TOKEN_LOCAL_OVERRIDE to skip Key Vault. NEVER commit a real token here. This file itself must never be committed (see .gitignore).",
     "SM_ACCESS_TOKEN_LOCAL_OVERRIDE": ""
   },

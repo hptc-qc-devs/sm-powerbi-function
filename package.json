@@ -2,7 +2,7 @@
   "name": "sm-powerbi-function",
   "version": "0.1.0",
   "description": "Self-hosted Azure Function that connects SurveyMonkey surveys to Power BI",
-  "main": "src/functions/*.js",
+  "main": "src/functions/**/*.js",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -21,19 +21,22 @@
     "connector"
   ],
   "engines": {
-    "node": ">=18.0.0 <21.0.0"
+    "node": ">=20.0.0"
   },
   "scripts": {
     "start": "func start",
     "test": "node --test test/*.test.js",
+    "test:integration": "STORAGE_CONNECTION_STRING=UseDevelopmentStorage=true node --test test/*.test.js",
+    "azurite": "azurite --location .azurite --skipApiVersionCheck",
     "setup-oauth": "node scripts/setupOAuth.js"
   },
   "dependencies": {
     "@azure/functions": "^4.5.0",
     "@azure/identity": "^4.4.1",
-    "@azure/keyvault-secrets": "^4.8.0"
+    "@azure/keyvault-secrets": "^4.8.0",
+    "@azure/storage-blob": "^12.33.0"
   },
   "devDependencies": {
-    "azure-functions-core-tools": "^4.0.5950"
+    "azurite": "^3.34.0"
   }
 }

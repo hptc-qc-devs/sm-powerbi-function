@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['18', '20']
+        node-version: ['20', '22']
 
     steps:
       - uses: actions/checkout@v4
@@ -25,11 +25,25 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
-      # Production dependencies only. The azure-functions-core-tools
-      # devDependency downloads a large platform-specific binary that the
-      # tests don't need, so skipping it keeps CI fast and less flaky.
       - name: Install dependencies
-        run: npm ci --omit=dev
+        run: npm ci
 
-      - name: Run tests
+      # Offline: fixtures only, no Azure resources. Integration tests skip
+      # themselves here because STORAGE_CONNECTION_STRING is unset.
+      - name: Unit tests
         run: npm test
+
+      # Exercises the storage layer against a real Azure Storage API, which
+      # the in-memory fakes in the unit tests cannot cover.
+      - name: Start Azurite
+        run: |
+          npx azurite-blob --location /tmp/azurite --blobPort 10000 --skipApiVersionCheck &
+          for i in $(seq 1 30); do
+            if nc -z 127.0.0.1 10000; then echo "Azurite ready"; exit 0; fi
+            sleep 1
+          done
+          echo "Azurite failed to start within 30s" >&2
+          exit 1
+
+      - name: Integration tests
+        run: npm run test:integration

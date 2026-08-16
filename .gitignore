@@ -1,5 +1,10 @@
 node_modules/
 local.settings.json
+
+# Azurite (local blob emulator) working files
+.azurite/
+__blobstorage__/
+__azurite_db*.json
 bin/
 obj/
 .vscode/

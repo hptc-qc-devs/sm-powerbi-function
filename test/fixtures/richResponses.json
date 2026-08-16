@@ -1,0 +1,110 @@
+[
+  {
+    "id": "resp_complete",
+    "response_status": "completed",
+    "date_created": "2025-03-10T10:00:00Z",
+    "date_modified": "2025-03-10T10:12:00Z",
+    "collector_id": "col_web",
+    "total_time": 720,
+    "metadata": { "contact": { "language": "en" } },
+    "pages": [
+      {
+        "id": "page_1",
+        "questions": [
+          { "id": "q_rating", "answers": [{ "row_id": "row_overall", "choice_id": "ch_4" }] },
+          { "id": "q_channel", "answers": [{ "choice_id": "ch_search" }] },
+          {
+            "id": "q_comments",
+            "answers": [{ "text": "Faster exports, please. Also: \"dark mode\", commas, and\nnewlines." }]
+          },
+          { "id": "q_age", "answers": [{ "text": "3" }] }
+        ]
+      },
+      {
+        "id": "page_2",
+        "questions": [
+          {
+            "id": "q_staff_matrix",
+            "answers": [
+              { "row_id": "row_support", "choice_id": "col_good" },
+              { "row_id": "row_docs", "choice_id": "col_bad" }
+            ]
+          },
+          {
+            "id": "q_details",
+            "answers": [
+              { "row_id": "row_role", "text": "Data analyst" },
+              { "row_id": "row_size", "text": "12" }
+            ]
+          },
+          {
+            "id": "q_priorities",
+            "answers": [
+              { "row_id": "row_speed", "rank": 1 },
+              { "row_id": "row_price", "rank": 2 }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "resp_other_specified",
+    "response_status": "completed",
+    "date_created": "2025-03-11T11:00:00Z",
+    "date_modified": "2025-03-11T11:04:00Z",
+    "collector_id": "col_email",
+    "total_time": 240,
+    "metadata": { "contact": { "language": "fr" } },
+    "pages": [
+      {
+        "id": "page_1",
+        "questions": [
+          { "id": "q_rating", "answers": [{ "row_id": "row_overall", "choice_id": "ch_na" }] },
+          {
+            "id": "q_channel",
+            "answers": [{ "other_id": "ch_other", "text": "Conference booth" }]
+          },
+          { "id": "q_comments", "answers": [{ "text": "=SUM(A1:A9)" }] },
+          { "id": "q_age", "answers": [{ "text": "not sure" }] }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "resp_skipped",
+    "response_status": "completed",
+    "date_created": "2025-03-12T08:30:00Z",
+    "date_modified": "2025-03-12T08:33:00Z",
+    "collector_id": "col_web",
+    "total_time": 180,
+    "metadata": { "contact": { "language": "en" } },
+    "pages": [
+      {
+        "id": "page_1",
+        "questions": [
+          { "id": "q_rating", "answers": [{ "row_id": "row_overall", "choice_id": "ch_2" }] },
+          { "id": "q_channel", "answers": [] },
+          { "id": "q_comments", "answers": [] },
+          { "id": "q_age", "answers": [{ "text": "-2" }] }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "resp_unknown_shape",
+    "response_status": "partial",
+    "date_created": "2025-03-13T16:00:00Z",
+    "date_modified": "2025-03-13T16:02:00Z",
+    "collector_id": "col_email",
+    "metadata": {},
+    "pages": [
+      {
+        "id": "page_1",
+        "questions": [
+          { "id": "q_rating", "answers": [{ "future_field": "something new", "value": 42 }] }
+        ]
+      }
+    ]
+  }
+]

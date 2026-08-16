@@ -116,14 +116,14 @@ changed responses, merged into the stored dataset.
 
 ## Milestones
 
-### M1 — Open-source project hygiene
+### M1 — Open-source project hygiene ✅ done
 - `LICENSE` (MIT), README rewrite for a general audience, `CONTRIBUTING.md`,
   `CODE_OF_CONDUCT.md`, `SECURITY.md`, issue/PR templates.
-- CI: GitHub Actions running `npm test` on Node 18 and 20.
+- CI: GitHub Actions running `npm test` on Node 20 and 22.
 - `CHANGELOG.md`; move `handleSurveyMonkeyError` into `src/lib/`; create the
   `docs/architecture.md` the README references.
 
-### M2 — Data layer: schema builder + sync engine (the core)
+### M2 — Data layer: schema builder + sync engine (the core) ✅ done
 - `src/lib/schema.js`: pure star-schema builder (survey details + responses →
   the five tables), including the typing rules above. Unit-tested with
   fixtures, same style as `flatten.test.js`. Extend fixtures to cover
@@ -140,7 +140,7 @@ changed responses, merged into the stored dataset.
 - `src/functions/syncTimer.js`: timer trigger, schedule from app settings
   (wizard-configurable). `src/functions/syncNow.js`: admin-key HTTP trigger.
 
-### M3 — Serving endpoints (what Power BI calls)
+### M3 — Serving endpoints (what Power BI calls) ✅ done
 - `GET /api/surveys/{id}/data/{table}` — serve `latest/{table}.csv` from blob
   (`table` ∈ surveys|questions|choices|responses|answers|flat), with
   `?format=json` option. Function-key auth, streamed, fast.
@@ -148,7 +148,7 @@ changed responses, merged into the stored dataset.
 - Live fallback mode: existing `getFlattenedResponses` path retained and
   documented for tiny surveys / no-storage setups.
 
-### M4 — Setup/config API (the wizard's backend)
+### M4 — Setup/config API (the wizard's backend) ✅ done
 All `authLevel: 'admin'` (master key — only the deployer configures):
 - `GET  /api/setup/status` — token stored? valid? last sync per survey?
 - `POST /api/setup/token` — validate pasted token against SM, store via
@@ -161,7 +161,7 @@ All `authLevel: 'admin'` (master key — only the deployer configures):
 - `GET  /api/setup/connection-info?surveyId=` — endpoint URLs + generated
   Power Query (M) snippet that loads all five tables (or flat) into Power BI.
 
-### M5 — Setup wizard UI
+### M5 — Setup wizard UI ✅ done
 - Plain HTML/CSS/JS in `public/`, no build step, served by a catch-all
   admin-key function.
 - Steps: 1) Welcome/prereqs (SM Developer App how-to, scopes) →

@@ -19,50 +19,191 @@ a place that's testable, and hands Power BI something flat.
 ## System shape
 
 ```
-Power BI (Desktop / Service, scheduled refresh)
-        |
-        v  HTTPS + function key
-Azure Function App (Node.js 18/20, Consumption plan)
-        |
-        +--> Key Vault      (Managed Identity; reads the SurveyMonkey token)
-        |
-        +--> SurveyMonkey API v3
-                 1. GET /surveys/{id}/details   -> question & choice text
-                 2. GET /surveys/{id}/responses/bulk -> the answers (paginated)
-        |
-        v
-   flatten -> tabular rows -> JSON response
+        timer (SYNC_SCHEDULE, default every 6h)
+                 |
+                 v
+        Azure Function App (Node.js 20/22)
+                 |
+                 +--> Key Vault  (Managed Identity; reads the SurveyMonkey token)
+                 |
+                 +--> SurveyMonkey API v3
+                 |        1. GET /surveys/{id}/details        question & choice text
+                 |        2. GET /surveys/{id}/responses/bulk  answers (paginated,
+                 |                                             incremental)
+                 v
+        build star schema -> CSV -> Blob Storage
+                 |
+                 v  HTTPS + function key
+        Power BI (Desktop / Service, scheduled refresh)
 ```
 
 Everything runs in the deployer's own Azure subscription. There is no hosted
 component, so survey data and credentials never pass through infrastructure
 the maintainers control.
 
+**Power BI never talks to SurveyMonkey.** That indirection is the point of the
+design, and it's covered under "Why storage sits in the middle" below.
+
+There is also a **direct mode** (`GET /api/surveys/{id}/flattened-responses`)
+that pulls and flattens inside the request with nothing stored. It's useful
+for small surveys and for validating a token quickly, and it carries the
+rate-limit and timeout constraints that the synced path exists to remove.
+
 ## Module layout
 
 ```
 src/
-  functions/                   HTTP entry points (thin: parse, call, respond)
+  functions/                   Entry points (thin: parse, call, respond)
     health.js                  GET /api/health
     listSurveys.js             GET /api/surveys
-    getFlattenedResponses.js   GET /api/surveys/{surveyId}/flattened-responses
+    getData.js                 GET .../data/{table}  (the Power BI feed)
+    getStatus.js               GET .../status        (sync state, snapshots)
+    getFlattenedResponses.js   GET .../flattened-responses (direct mode)
+    syncTimer.js               Scheduled sync
+    syncNow.js                 POST /api/sync[/{surveyId}] (admin key)
+    ui.js                      GET  /api/ui[/{path}] - serves the wizard
+    setup/                     Setup + configuration API (admin key)
+      status.js                GET  /api/setup/status
+      token.js                 POST /api/setup/token
+      oauth.js                 OAuth start + callback
+      surveys.js               GET  /api/setup/surveys
+      syncConfig.js            GET/POST /api/setup/sync-config
+      connectionInfo.js        GET  /api/setup/connection-info
   lib/                         All the actual logic
+    schema.js                  Pure transform: nested JSON -> star schema
     flatten.js                 Pure transform: nested JSON -> flat rows
+    csv.js                     Table rows <-> CSV
+    syncEngine.js              Orchestrates a sync (pull, merge, build, write)
+    setupConfig.js             Runtime config + OAuth state, blob-backed
+    blobStore.js               Blob layout and access
     surveyMonkeyClient.js      SurveyMonkey API wrapper, pagination, typed errors
     surveyDetailsCache.js      Per-survey question/choice lookups, cached
     secretsClient.js           Secret storage behind a swappable backend
     apiErrors.js               Upstream errors -> HTTP responses
     logger.js                  Structured logging with a content allowlist
+public/                        Setup wizard: plain HTML/CSS/JS, no build step
+  index.html                   Four-step markup
+  styles.css                   Theme-aware styling
+  app.js                       Step navigation and API calls
 scripts/
   setupOAuth.js                Local-only: obtain and/or store a token
 test/
-  flatten.test.js              Fixture-driven unit tests
+  schema.test.js               Star-schema transform
+  csv.test.js                  Serialization, escaping, parsing
+  syncEngine.test.js           Sync orchestration, against in-memory fakes
+  getData.test.js              Serving endpoints, handlers invoked directly
+  setupConfig.test.js          Config layering, validation, OAuth state
+  setupApi.test.js             Setup endpoints, handlers invoked directly
+  ui.test.js                   Asset serving and path-traversal handling
+  blobStore.integration.test.js  Real storage via Azurite (opt-in)
+  flatten.test.js              Legacy flat transform
   fixtures/                    Synthetic survey details + responses
 ```
 
 The rule the layout encodes: **functions are thin, lib holds the logic.**
 Anything worth testing lives in `lib/` and takes plain data as input, so the
 test suite never needs Azure, network access, or the Functions runtime.
+
+## Why storage sits in the middle
+
+Serving Power BI directly from the SurveyMonkey API looks simpler, and it
+fails in four ways that all have the same fix.
+
+1. **Rate limits.** SurveyMonkey caps API requests per day. A survey with
+   10,000 responses is roughly 100 paginated calls. Multiply by a few surveys
+   and an eight-times-daily refresh schedule and the quota is gone by
+   mid-morning — after which the connector looks broken.
+2. **Timeouts.** A synchronous pull has to finish inside both the Function
+   timeout and Power BI's patience. Large surveys fail unpredictably, which
+   is worse than failing consistently.
+3. **No history.** SurveyMonkey exposes only current state. Without stored
+   snapshots, "this quarter versus last" has no data to work from, ever.
+4. **Upstream outages.** If SurveyMonkey is down when a refresh fires, the
+   report is empty.
+
+Syncing on a schedule fixes all four at once. SurveyMonkey is contacted on
+*our* cadence regardless of how often Power BI refreshes; refreshes become
+static file reads measured in seconds; snapshots accumulate history; and a
+SurveyMonkey outage leaves the last good sync serving.
+
+### Incremental pulls, full rebuilds
+
+After the first sync, only responses modified since the stored watermark are
+fetched. They're merged into the retained raw set keyed on response id, so an
+edited response replaces its earlier version rather than appearing twice.
+
+The tables are then rebuilt **from the entire merged set**, not patched
+row-by-row. Patching would be faster and is the usual design; it's also how
+these pipelines rot, because every edge case that doesn't apply a delta
+correctly leaves permanent drift that nobody notices until the numbers are
+questioned months later. Rebuilding guarantees the output of an incremental
+sync is byte-identical to a full one.
+
+Two conditions force a full pull rather than an incremental one: an explicit
+request (`?full=true`), and a missing raw base. The second matters — if the
+raw blob is lost but `state.json` survives, an incremental pull would fetch
+only recent responses and quietly write a dataset missing everything older.
+
+### What gets stored
+
+```
+{surveyId}/latest/{table}.csv       what the data endpoints serve
+{surveyId}/raw/responses.json       merged raw responses (the incremental base)
+{surveyId}/snapshots/{date}/...     frozen copies, when history is enabled
+{surveyId}/state.json               watermark, row counts, last sync result
+```
+
+Respondent identifiers — IP address, email, name — are stripped before
+anything is written. The tables never expose them, so retaining them in the
+raw base would mean holding personal data the connector has no use for.
+Language is kept, because it's genuinely analytical.
+
+Snapshots are off by default. Turning them on freezes a dated copy each sync
+and prunes past the retention window. Retention is enforced in code rather
+than by a storage lifecycle policy so it behaves identically however the
+storage account was provisioned.
+
+## Why a star schema
+
+The original output was one wide table: a row per response × question ×
+answer, every value a string. It works, and it has two flaws that matter for
+analytics.
+
+Everything being a string means a satisfaction rating arrives as the label
+`"Good"` with the number 4 nowhere in the data, so averaging requires a
+lookup table hand-built in Power Query. And a single denormalized table
+repeats survey and question text on every row while forcing awkward DAX,
+because Power BI's engine is built around relationships between dimension and
+fact tables.
+
+So `schema.js` emits five related tables:
+
+| Table | Grain | Role |
+|---|---|---|
+| `surveys` | 1 per survey | dimension |
+| `questions` | 1 per question | dimension |
+| `choices` | 1 per choice / matrix row / "other" option | dimension |
+| `responses` | 1 per response | dimension |
+| `answers` | 1 per answer | **fact** |
+
+The rules encoded in the transform, each of which was a bug in the flat shape:
+
+- **`value_numeric` carries meaning, not just labels.** Choice weights and
+  ranking positions become numbers, so ratings and NPS aggregate natively.
+- **Numeric coercion is deliberately narrow.** Only questions SurveyMonkey
+  marks as numerical get their text parsed. Guessing at every text field
+  would turn postcodes and years into quantities.
+- **Matrix rows get their own columns.** The flat shape concatenated them
+  into `"Customer support: Good"`, which can't be grouped or filtered.
+- **"Other (please specify)" keeps both halves.** Previously the typed text
+  overwrote the choice, silently dropping "Other" from distribution counts.
+  Now `choice_id` and `other_text` are separate columns.
+- **`is_na` is flagged** so "Not applicable" can be excluded from averages
+  rather than counting as zero.
+
+A `flat` view is still produced for people who don't want to model anything,
+but it's **derived from the star tables** rather than transformed separately,
+so the two cannot disagree. It inherits the typed columns.
 
 ## Key design decisions
 
@@ -155,22 +296,18 @@ leaves Key Vault and the Function's memory.
 
 ## Known limitations
 
-These are consequences of the current stateless design, and are what the
-roadmap addresses:
-
-- **Rate limits.** Every request re-pulls the full survey. A 10,000-response
-  survey is roughly 100 paginated API calls, and SurveyMonkey caps daily
-  request volume, so frequent Power BI refreshes across several surveys can
-  exhaust the quota.
-- **Timeouts.** The whole pull-and-flatten happens inside one HTTP request,
-  which must finish within both the Function timeout and Power BI's patience.
-  Large surveys are at risk.
-- **No history.** SurveyMonkey exposes only current state, so trend analysis
-  is impossible without storing snapshots.
-- **Upstream availability.** If SurveyMonkey is down, a scheduled refresh
-  fails and the report is empty.
+- **The first sync of a very large survey can outrun the Function timeout.**
+  It's a full pull, and Consumption plans cap at 10 minutes. Subsequent syncs
+  are incremental and far quicker. Narrowing `SYNC_SURVEY_IDS` and letting the
+  timer work through surveys separately is the workaround.
+- **Sync latency.** Power BI sees data as fresh as the last sync, so a
+  six-hour schedule means data up to six hours old. Tighten the schedule or
+  trigger `POST /api/sync` on demand.
 - **One survey per request.** Cross-survey dashboards need one query per
-  survey, unioned in Power Query.
+  survey, unioned in Power Query. A multi-survey endpoint is on the roadmap.
+- **No automated token refresh**, because SurveyMonkey doesn't offer it.
+- **Direct mode keeps its original constraints** — rate limits, timeouts, no
+  history — by definition, since nothing is stored. It exists for small
+  surveys and quick validation.
 
-The planned fix for the first four is the same: sync into Blob Storage on a
-schedule and serve Power BI from storage. See [`ROADMAP.md`](ROADMAP.md).
+See [`ROADMAP.md`](ROADMAP.md) for what's planned next.
