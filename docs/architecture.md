@@ -22,7 +22,7 @@ a place that's testable, and hands Power BI something flat.
         timer (SYNC_SCHEDULE, default every 6h)
                  |
                  v
-        Azure Function App (Node.js 18/20)
+        Azure Function App (Node.js 20/22)
                  |
                  +--> Key Vault  (Managed Identity; reads the SurveyMonkey token)
                  |

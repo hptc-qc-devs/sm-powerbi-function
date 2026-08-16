@@ -119,7 +119,7 @@ changed responses, merged into the stored dataset.
 ### M1 — Open-source project hygiene ✅ done
 - `LICENSE` (MIT), README rewrite for a general audience, `CONTRIBUTING.md`,
   `CODE_OF_CONDUCT.md`, `SECURITY.md`, issue/PR templates.
-- CI: GitHub Actions running `npm test` on Node 18 and 20.
+- CI: GitHub Actions running `npm test` on Node 20 and 22.
 - `CHANGELOG.md`; move `handleSurveyMonkeyError` into `src/lib/`; create the
   `docs/architecture.md` the README references.
 

@@ -66,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Contributor documentation: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
   `SECURITY.md` (including a threat model for self-hosted deployments).
 - GitHub issue and pull request templates.
-- Continuous integration running the test suite on Node.js 18 and 20.
+- Continuous integration running the test suite on Node.js 20 and 22.
 - `docs/architecture.md` describing the system design and the reasoning
   behind it.
 - `docs/ROADMAP.md` setting out the path to a general-purpose connector:
@@ -75,6 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Supported Node.js versions are now 20 and 22**, up from 18 and 20. Node 18
+  reached end-of-life in April 2025, and Homebrew disables its `node@20`
+  formula in October 2026, so the old `<21.0.0` ceiling forced new
+  contributors onto software they could no longer install. CI tests both.
 - **`azure-functions-core-tools` is no longer a dev dependency.** It is a
   large platform-specific binary, it was already a documented prerequisite to
   install globally, and pinning it made `npm install` fail outright on any

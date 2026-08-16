@@ -75,7 +75,8 @@ the reasoning behind it.
 ## Prerequisites
 
 - An **Azure subscription** (the Function runs in your tenant)
-- **Node.js 18 or 20**
+- **Node.js 20 or 22** (22 recommended — Node 18 is end-of-life, and Node 20
+  entered maintenance)
 - [**Azure Functions Core Tools v4**](https://learn.microsoft.com/azure/azure-functions/functions-run-local),
   installed globally — it's needed to run the Function locally (`npm start`),
   but not to run the tests:
