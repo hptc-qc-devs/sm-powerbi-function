@@ -16,8 +16,8 @@
 
     "SURVEY_DETAILS_CACHE_TTL_MS": "14400000",
 
-    "_comment_storage": "Where synced survey tables are written. STORAGE_ACCOUNT_URL is the supported path in Azure - the Function App's managed identity needs the 'Storage Blob Data Contributor' role on the account. STORAGE_CONNECTION_STRING is a local-development fallback (for example Azurite) and should not be used in a deployment.",
-    "STORAGE_ACCOUNT_URL": "https://your-account.blob.core.windows.net",
+    "_comment_storage": "Where synced survey tables are written. STORAGE_ACCOUNT_URL takes precedence when set, and is the supported path in Azure - the Function App's managed identity needs the 'Storage Blob Data Contributor' role on the account. Leave it EMPTY locally so STORAGE_CONNECTION_STRING (Azurite) is used instead; setting both means the connection string is ignored.",
+    "STORAGE_ACCOUNT_URL": "",
     "STORAGE_CONNECTION_STRING": "UseDevelopmentStorage=true",
     "STORAGE_CONTAINER": "survey-data",
 

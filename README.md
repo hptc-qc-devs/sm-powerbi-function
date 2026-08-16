@@ -76,7 +76,14 @@ the reasoning behind it.
 
 - An **Azure subscription** (the Function runs in your tenant)
 - **Node.js 18 or 20**
-- [**Azure Functions Core Tools v4**](https://learn.microsoft.com/azure/azure-functions/functions-run-local)
+- [**Azure Functions Core Tools v4**](https://learn.microsoft.com/azure/azure-functions/functions-run-local),
+  installed globally — it's needed to run the Function locally (`npm start`),
+  but not to run the tests:
+  ```bash
+  npm install -g azure-functions-core-tools@4 --unsafe-perm true
+  # macOS:   brew tap azure/functions && brew install azure-functions-core-tools@4
+  # Windows: winget install Microsoft.Azure.FunctionsCoreTools
+  ```
 - **Azure CLI**, logged in via `az login` (local development uses your
   identity to reach Key Vault)
 - A **SurveyMonkey Developer App** with an access token — create one at
@@ -115,7 +122,13 @@ npm run setup-oauth -- --store-token     # you already have a token
 npm run setup-oauth -- --full-flow       # or walk the OAuth flow
 ```
 
-Run it:
+Start the local storage emulator in one terminal:
+
+```bash
+npm run azurite
+```
+
+and the Function in another:
 
 ```bash
 npm start
@@ -126,8 +139,34 @@ Then check it works:
 ```bash
 curl http://localhost:7071/api/health
 curl http://localhost:7071/api/surveys
-curl http://localhost:7071/api/surveys/<survey-id>/flattened-responses
+
+# sync a survey, then read it back
+curl -X POST http://localhost:7071/api/sync/<survey-id>
+curl http://localhost:7071/api/surveys/<survey-id>/status
+curl http://localhost:7071/api/surveys/<survey-id>/data/answers
 ```
+
+Function keys aren't enforced when running locally, so no key is needed here.
+
+### Running with no Azure resources at all
+
+You can exercise the whole pipeline without a Key Vault or a storage account —
+useful for development and for trying the project out. In
+`local.settings.json`:
+
+```jsonc
+"SECRETS_BACKEND": "local-override",
+"SM_ACCESS_TOKEN_LOCAL_OVERRIDE": "<your SurveyMonkey token>",
+"STORAGE_ACCOUNT_URL": "",                          // must be empty
+"STORAGE_CONNECTION_STRING": "UseDevelopmentStorage=true"
+```
+
+The only thing you still need is a real SurveyMonkey token, since that's the
+actual upstream. `local-override` is a development-only path that logs a loud
+warning and must never be enabled in a deployment.
+
+Leave `STORAGE_ACCOUNT_URL` empty — when it's set it takes precedence, and the
+Azurite connection string is ignored.
 
 ## Endpoints
 

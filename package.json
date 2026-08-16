@@ -27,7 +27,7 @@
     "start": "func start",
     "test": "node --test test/*.test.js",
     "test:integration": "STORAGE_CONNECTION_STRING=UseDevelopmentStorage=true node --test test/*.test.js",
-    "azurite": "azurite-blob --location .azurite --blobPort 10000 --skipApiVersionCheck",
+    "azurite": "azurite --location .azurite --skipApiVersionCheck",
     "setup-oauth": "node scripts/setupOAuth.js"
   },
   "dependencies": {
