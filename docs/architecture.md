@@ -61,6 +61,7 @@ src/
     getFlattenedResponses.js   GET .../flattened-responses (direct mode)
     syncTimer.js               Scheduled sync
     syncNow.js                 POST /api/sync[/{surveyId}] (admin key)
+    ui.js                      GET  /api/ui[/{path}] - serves the wizard
     setup/                     Setup + configuration API (admin key)
       status.js                GET  /api/setup/status
       token.js                 POST /api/setup/token
@@ -80,6 +81,10 @@ src/
     secretsClient.js           Secret storage behind a swappable backend
     apiErrors.js               Upstream errors -> HTTP responses
     logger.js                  Structured logging with a content allowlist
+public/                        Setup wizard: plain HTML/CSS/JS, no build step
+  index.html                   Four-step markup
+  styles.css                   Theme-aware styling
+  app.js                       Step navigation and API calls
 scripts/
   setupOAuth.js                Local-only: obtain and/or store a token
 test/
@@ -89,6 +94,7 @@ test/
   getData.test.js              Serving endpoints, handlers invoked directly
   setupConfig.test.js          Config layering, validation, OAuth state
   setupApi.test.js             Setup endpoints, handlers invoked directly
+  ui.test.js                   Asset serving and path-traversal handling
   blobStore.integration.test.js  Real storage via Azurite (opt-in)
   flatten.test.js              Legacy flat transform
   fixtures/                    Synthetic survey details + responses

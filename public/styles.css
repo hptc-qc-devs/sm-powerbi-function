@@ -1,0 +1,302 @@
+/*
+ * Wizard styling. Plain CSS, no framework and no build step — the whole
+ * wizard is meant to be editable by cloning the repo and opening a file.
+ *
+ * Colours are defined as tokens on :root and redefined for dark mode, so the
+ * wizard follows the operating system rather than forcing a light page on
+ * someone working at night.
+ */
+
+:root {
+  --bg: #ffffff;
+  --surface: #f7f7f8;
+  --border: #e0e0e3;
+  --text: #1a1a1c;
+  --muted: #63636b;
+  --accent: #1a6ae0;
+  --accent-text: #ffffff;
+  --ok: #14804a;
+  --ok-bg: #e8f5ee;
+  --warn: #8a5a00;
+  --warn-bg: #fdf3e2;
+  --error: #b3261e;
+  --error-bg: #fdecea;
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161618;
+    --surface: #1e1e21;
+    --border: #34343a;
+    --text: #ededf0;
+    --muted: #9b9ba4;
+    --accent: #5a9bff;
+    --accent-text: #0b0b0d;
+    --ok: #5bd48f;
+    --ok-bg: #122c1f;
+    --warn: #e5b567;
+    --warn-bg: #2e2416;
+    --error: #ff8a80;
+    --error-bg: #331d1b;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.6;
+}
+
+.masthead {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 0.5rem;
+}
+
+.masthead h1 { font-size: 1.5rem; margin: 0; }
+.subtitle { color: var(--muted); margin: 0.25rem 0 0; }
+
+main, footer {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+footer { padding-bottom: 3rem; }
+
+h2 { font-size: 1.2rem; margin: 0 0 1rem; }
+h3 { font-size: 0.95rem; margin: 0 0 0.5rem; }
+
+.muted { color: var(--muted); }
+.hint { color: var(--muted); font-size: 0.875rem; margin: 0.25rem 0 1rem; }
+
+code {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+
+/* --- step navigation ---------------------------------------------------- */
+
+.steps {
+  max-width: 46rem;
+  margin: 1.5rem auto 2rem;
+  padding: 0 1.5rem;
+}
+
+.steps ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.steps li { display: flex; align-items: center; gap: 0.5rem; }
+
+.steps .num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+
+.steps li[data-active] { color: var(--text); font-weight: 600; }
+.steps li[data-active] .num {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.steps li[data-done] .num {
+  background: var(--ok-bg);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+/* --- form controls ------------------------------------------------------ */
+
+label {
+  display: block;
+  margin: 1rem 0 0.35rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+label.inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+  margin: 0.75rem 0;
+}
+
+input[type="text"], input[type="password"], input[type="number"], select {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+input:focus, select:focus, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+input[readonly] { background: var(--surface); color: var(--muted); }
+
+fieldset.options {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem 1rem 1rem;
+  margin: 1.5rem 0;
+}
+
+legend { font-weight: 600; font-size: 0.9rem; padding: 0 0.4rem; }
+
+/* --- buttons ------------------------------------------------------------ */
+
+.actions { display: flex; gap: 0.75rem; margin: 1.25rem 0; }
+.actions.spread { justify-content: space-between; margin-top: 2rem; }
+
+button {
+  font: inherit;
+  font-size: 0.925rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+button.primary { background: var(--accent); color: var(--accent-text); }
+button.ghost { background: transparent; color: var(--text); border-color: var(--border); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button:not(:disabled):hover { filter: brightness(1.08); }
+
+.copy-row { display: flex; gap: 0.5rem; }
+.copy-row input { flex: 1; }
+
+/* --- tabs --------------------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--muted);
+  padding: 0.5rem 0.9rem;
+}
+
+.tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* --- banners and status ------------------------------------------------- */
+
+.banner {
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  font-size: 0.925rem;
+  border: 1px solid transparent;
+}
+
+.banner.ok { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+.banner.error { background: var(--error-bg); border-color: var(--error); color: var(--error); }
+.banner.warn { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+
+.status-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin: 1.5rem 0;
+}
+
+.checks { list-style: none; margin: 0 0 0.5rem; padding: 0; font-size: 0.9rem; }
+.checks li { display: flex; align-items: center; gap: 0.6rem; padding: 0.15rem 0; }
+
+.dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+}
+
+.checks li[data-state="ok"] .dot { background: var(--ok); }
+.checks li[data-state="bad"] .dot { background: var(--error); }
+
+/* --- survey list -------------------------------------------------------- */
+
+.survey-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.survey-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.survey-row:last-child { border-bottom: none; }
+.survey-row input { margin-top: 0.35rem; flex: none; }
+.survey-row .title { font-weight: 600; font-size: 0.925rem; }
+.survey-row .meta { color: var(--muted); font-size: 0.825rem; }
+
+/* --- connection info ---------------------------------------------------- */
+
+pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem;
+  overflow-x: auto;
+  font-size: 0.825rem;
+  line-height: 1.5;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  margin: 1rem 0;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+th { color: var(--muted); font-weight: 600; }
+td code { font-size: 0.8em; word-break: break-all; }
+
+.prose-list li { margin-bottom: 0.5rem; }

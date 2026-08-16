@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SurveyMonkey → Power BI setup</title>
+  <!-- Inline so the page makes no request the server has to answer, and so
+       there is no broken-favicon error in the console. -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231a6ae0'/%3E%3Cpath d='M3.5 11.5V7m3 4.5V5m3 6.5V8.5m3 3V4' stroke='white' stroke-width='1.6' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="masthead">
+  <h1>SurveyMonkey → Power BI</h1>
+  <p class="subtitle">Connect your surveys to Power BI. Four steps.</p>
+</header>
+
+<nav class="steps" aria-label="Setup progress">
+  <ol>
+    <li data-step-tab="1"><span class="num">1</span> Before you start</li>
+    <li data-step-tab="2"><span class="num">2</span> Connect SurveyMonkey</li>
+    <li data-step-tab="3"><span class="num">3</span> Choose surveys</li>
+    <li data-step-tab="4"><span class="num">4</span> Connect Power BI</li>
+  </ol>
+</nav>
+
+<main>
+
+  <div id="global-error" class="banner error" hidden></div>
+
+  <!-- Step 1 ------------------------------------------------------------ -->
+  <section class="step" data-step="1">
+    <h2>Before you start</h2>
+
+    <p>
+      You need a SurveyMonkey app to get an access token. It takes a minute and
+      you only do it once.
+    </p>
+
+    <ol class="prose-list">
+      <li>
+        Go to
+        <a href="https://developer.surveymonkey.com/apps/" target="_blank" rel="noopener noreferrer">developer.surveymonkey.com/apps</a>
+        and sign in.
+      </li>
+      <li>Create a <strong>private app</strong>. Private apps need no review and work immediately.</li>
+      <li>
+        Under <strong>Scopes</strong>, enable <code>View Surveys</code> and
+        <code>View Responses</code>. Those are the only two needed — this tool
+        never writes to your SurveyMonkey account.
+      </li>
+      <li>Open the app's <strong>Settings</strong> tab and copy its <strong>Access Token</strong>.</li>
+    </ol>
+
+    <div class="status-card" id="env-status">
+      <h3>This deployment</h3>
+      <ul class="checks">
+        <li data-check="storage"><span class="dot"></span> Storage</li>
+        <li data-check="token"><span class="dot"></span> SurveyMonkey token</li>
+      </ul>
+      <p class="muted" id="env-detail">Checking…</p>
+    </div>
+
+    <div class="actions">
+      <button class="primary" data-goto="2">Continue</button>
+    </div>
+  </section>
+
+  <!-- Step 2 ------------------------------------------------------------ -->
+  <section class="step" data-step="2" hidden>
+    <h2>Connect SurveyMonkey</h2>
+
+    <div class="tabs" role="tablist">
+      <button role="tab" class="tab active" data-tab="paste">Paste a token</button>
+      <button role="tab" class="tab" data-tab="oauth">Use OAuth</button>
+    </div>
+
+    <div class="tab-panel" data-panel="paste">
+      <p class="muted">
+        The simplest route. Paste the access token from your app's Settings tab.
+        It is checked against SurveyMonkey before being saved, so a typo is
+        caught here rather than showing up later as a failed sync.
+      </p>
+
+      <label for="token">Access token</label>
+      <input type="password" id="token" autocomplete="off" spellcheck="false"
+             placeholder="Paste your SurveyMonkey access token">
+
+      <label class="inline">
+        <input type="checkbox" id="show-token"> Show token
+      </label>
+
+      <div class="actions">
+        <button class="primary" id="save-token">Validate and save</button>
+      </div>
+
+      <div id="token-result" class="banner" hidden></div>
+    </div>
+
+    <div class="tab-panel" data-panel="oauth" hidden>
+      <p class="muted">
+        Walks through SurveyMonkey's authorization screen instead of handling a
+        raw token. You still need your own app — register its redirect URI as
+        the value shown below, <em>exactly</em>.
+      </p>
+
+      <label for="redirect-uri">Redirect URI (register this in your app)</label>
+      <div class="copy-row">
+        <input type="text" id="redirect-uri" readonly>
+        <button class="ghost" data-copy="#redirect-uri">Copy</button>
+      </div>
+
+      <label for="client-id">Client ID</label>
+      <input type="text" id="client-id" autocomplete="off" spellcheck="false">
+
+      <label for="client-secret">Client secret</label>
+      <input type="password" id="client-secret" autocomplete="off" spellcheck="false">
+
+      <div class="actions">
+        <button class="primary" id="start-oauth">Start authorization</button>
+      </div>
+
+      <div id="oauth-result" class="banner" hidden></div>
+    </div>
+
+    <div class="actions spread">
+      <button class="ghost" data-goto="1">Back</button>
+      <button class="primary" data-goto="3" id="to-step-3" disabled>Continue</button>
+    </div>
+  </section>
+
+  <!-- Step 3 ------------------------------------------------------------ -->
+  <section class="step" data-step="3" hidden>
+    <h2>Choose surveys</h2>
+
+    <p class="muted">
+      Pick which surveys to keep synced. Selecting none syncs everything your
+      token can see — fine to start with, worth narrowing on a large account so
+      you stay inside SurveyMonkey's daily API limit.
+    </p>
+
+    <div id="survey-list" class="survey-list">
+      <p class="muted">Loading surveys…</p>
+    </div>
+
+    <fieldset class="options">
+      <legend>Options</legend>
+
+      <label class="inline">
+        <input type="checkbox" id="history-enabled">
+        Keep dated snapshots
+      </label>
+      <p class="hint">
+        SurveyMonkey only ever tells you the current state. Snapshots are what
+        make quarter-over-quarter and year-over-year comparisons possible.
+      </p>
+
+      <label for="retention-days">Keep snapshots for (days)</label>
+      <input type="number" id="retention-days" min="0" step="1" value="90">
+      <p class="hint">0 keeps them forever. Pruned snapshots cannot be recovered.</p>
+
+      <label for="response-status">Include responses that are</label>
+      <select id="response-status">
+        <option value="completed">Completed only</option>
+        <option value="all">Completed and partial</option>
+      </select>
+    </fieldset>
+
+    <div class="actions">
+      <button class="primary" id="save-and-sync">Save and run first sync</button>
+    </div>
+
+    <div id="sync-result" class="banner" hidden></div>
+
+    <div class="actions spread">
+      <button class="ghost" data-goto="2">Back</button>
+      <button class="primary" data-goto="4" id="to-step-4" disabled>Continue</button>
+    </div>
+  </section>
+
+  <!-- Step 4 ------------------------------------------------------------ -->
+  <section class="step" data-step="4" hidden>
+    <h2>Connect Power BI</h2>
+
+    <label for="survey-picker">Survey</label>
+    <select id="survey-picker"></select>
+
+    <div id="connection-info">
+      <p class="muted">Select a survey to see its connection details.</p>
+    </div>
+
+    <div class="actions spread">
+      <button class="ghost" data-goto="3">Back</button>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p class="muted">
+    Full documentation lives in the repository:
+    <code>docs/powerbi.md</code> for the Power BI side,
+    <code>docs/setup-api.md</code> for these endpoints.
+  </p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

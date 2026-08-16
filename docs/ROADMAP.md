@@ -161,7 +161,7 @@ All `authLevel: 'admin'` (master key — only the deployer configures):
 - `GET  /api/setup/connection-info?surveyId=` — endpoint URLs + generated
   Power Query (M) snippet that loads all five tables (or flat) into Power BI.
 
-### M5 — Setup wizard UI
+### M5 — Setup wizard UI ✅ done
 - Plain HTML/CSS/JS in `public/`, no build step, served by a catch-all
   admin-key function.
 - Steps: 1) Welcome/prereqs (SM Developer App how-to, scopes) →

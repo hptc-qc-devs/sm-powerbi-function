@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A setup wizard** at `GET /api/ui`, covering the whole journey in the
+  browser: prerequisites, connecting SurveyMonkey by pasted token or guided
+  OAuth, choosing surveys and sync options, running the first sync, and
+  generating Power BI connection details.
+  - Plain HTML, CSS and JavaScript with no build step or bundler, so it can be
+    edited by cloning the repo and opening `public/`.
+  - Follows the operating system's light or dark theme.
+  - The admin key is read from the page's own URL and sent as a header; it is
+    never written to storage, cookies, or any link, so it lives only as long
+    as the tab.
+  - Assets are served with `Cache-Control: no-store` and `nosniff`, and the
+    path resolver refuses traversal by resolving and bounds-checking rather
+    than pattern-matching the input.
+
 - **A setup API** covering the whole configuration flow over HTTP, so a
   deployment can be configured without editing application settings by hand.
   Documented in [`docs/setup-api.md`](docs/setup-api.md).

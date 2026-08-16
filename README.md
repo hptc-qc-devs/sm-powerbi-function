@@ -8,10 +8,11 @@ tables, and serves them over HTTPS for Power BI to consume on scheduled
 refresh. You deploy it into your own Azure subscription, so your survey data
 and credentials never leave your infrastructure.
 
-> **Status: early development.** The data pipeline works end to end — sync
-> from SurveyMonkey into Blob Storage, and serve the tables to Power BI. The
-> setup wizard and one-click deploy are next, so setup is still manual for now
-> — see [`docs/ROADMAP.md`](docs/ROADMAP.md). Contributions welcome.
+> **Status: early development.** The pipeline works end to end — sync from
+> SurveyMonkey into Blob Storage, serve the tables to Power BI, and configure
+> the whole thing through a built-in browser wizard. One-click deploy is the
+> remaining gap, so provisioning is still manual — see
+> [`docs/ROADMAP.md`](docs/ROADMAP.md). Contributions welcome.
 
 ## Why this exists
 
@@ -169,6 +170,25 @@ warning and must never be enabled in a deployment.
 Leave `STORAGE_ACCOUNT_URL` empty — when it's set it takes precedence, and the
 Azurite connection string is ignored.
 
+## The setup wizard
+
+Once deployed, open the wizard in a browser and it walks you through the whole
+thing — getting a SurveyMonkey token, choosing which surveys to sync, running
+the first sync, and generating your Power BI connection details:
+
+```
+https://<your-function-app>.azurewebsites.net/api/ui?code=<your-master-key>
+```
+
+The master key is in the Azure portal under Function App → App keys →
+`_master`. Running locally, `http://localhost:7071/api/ui` is enough — keys
+aren't enforced.
+
+The wizard is plain HTML, CSS and JavaScript with no build step, so you can
+edit it by cloning the repo and opening `public/`. Everything it does is also
+available as a plain HTTP API if you'd rather script it — see
+[`docs/setup-api.md`](docs/setup-api.md).
+
 ## Endpoints
 
 | Endpoint | Auth | Purpose |
@@ -187,6 +207,7 @@ Azurite connection string is ignored.
 | `GET /api/setup/surveys` | admin key | Survey browser with selection and sync state. |
 | `GET`/`POST /api/setup/sync-config` | admin key | Read or change which surveys sync, history, retention. |
 | `GET /api/setup/connection-info` | admin key | Power BI URLs and a generated Power Query script. |
+| `GET /api/ui` | admin key | The setup wizard. |
 
 Sync also runs automatically on the `SYNC_SCHEDULE` timer (default: every six
 hours).
