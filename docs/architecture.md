@@ -56,13 +56,15 @@ src/
   functions/                   Entry points (thin: parse, call, respond)
     health.js                  GET /api/health
     listSurveys.js             GET /api/surveys
+    getData.js                 GET .../data/{table}  (the Power BI feed)
+    getStatus.js               GET .../status        (sync state, snapshots)
     getFlattenedResponses.js   GET .../flattened-responses (direct mode)
     syncTimer.js               Scheduled sync
     syncNow.js                 POST /api/sync[/{surveyId}] (admin key)
   lib/                         All the actual logic
     schema.js                  Pure transform: nested JSON -> star schema
     flatten.js                 Pure transform: nested JSON -> flat rows
-    csv.js                     Table rows -> CSV
+    csv.js                     Table rows <-> CSV
     syncEngine.js              Orchestrates a sync (pull, merge, build, write)
     blobStore.js               Blob layout and access
     surveyMonkeyClient.js      SurveyMonkey API wrapper, pagination, typed errors
@@ -74,8 +76,10 @@ scripts/
   setupOAuth.js                Local-only: obtain and/or store a token
 test/
   schema.test.js               Star-schema transform
-  csv.test.js                  Serialization and escaping
+  csv.test.js                  Serialization, escaping, parsing
   syncEngine.test.js           Sync orchestration, against in-memory fakes
+  getData.test.js              Serving endpoints, handlers invoked directly
+  blobStore.integration.test.js  Real storage via Azurite (opt-in)
   flatten.test.js              Legacy flat transform
   fixtures/                    Synthetic survey details + responses
 ```

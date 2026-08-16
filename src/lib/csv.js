@@ -94,4 +94,137 @@ function neutralizeFormula(text) {
   return `'${text}`;
 }
 
-module.exports = { toCsv, escapeField, neutralizeFormula, BOM };
+/**
+ * Parses CSV back into rows of objects.
+ *
+ * Needed because the synced tables are stored as CSV, and the data endpoints
+ * can serve them as JSON. Reading back what we wrote is the only way to do
+ * that without storing every table twice.
+ *
+ * CSV carries no type information, so `types` declares which columns are
+ * numbers or booleans. Everything else stays a string. Guessing types from
+ * the values instead would turn postcodes and version numbers into
+ * quantities — the same mistake the schema transform deliberately avoids.
+ *
+ * @param {string} text
+ * @param {object} [opts]
+ * @param {Record<string,'number'|'boolean'>} [opts.types]
+ * @param {boolean} [opts.restoreFormulas=true] - undo the export-time
+ *   apostrophe that guards spreadsheet formula injection, so JSON consumers
+ *   see the value the respondent actually typed
+ * @returns {object[]}
+ */
+function fromCsv(text, opts = {}) {
+  const { types = {}, restoreFormulas = true } = opts;
+
+  const grid = parseGrid(text);
+  if (grid.length === 0) return [];
+
+  const header = grid[0];
+
+  return grid.slice(1).map((cells) => {
+    const row = {};
+
+    header.forEach((column, i) => {
+      let value = cells[i] === undefined ? '' : cells[i];
+
+      if (restoreFormulas) value = denormalizeFormula(value);
+
+      if (value === '') {
+        row[column] = null;
+        return;
+      }
+
+      const type = types[column];
+      if (type === 'number') {
+        const parsed = Number(value);
+        row[column] = Number.isFinite(parsed) ? parsed : null;
+      } else if (type === 'boolean') {
+        row[column] = value.toUpperCase() === 'TRUE';
+      } else {
+        row[column] = value;
+      }
+    });
+
+    return row;
+  });
+}
+
+/**
+ * Splits CSV text into a grid of raw string cells, per RFC 4180.
+ *
+ * Written as a character scanner rather than a line split, because fields may
+ * legitimately contain commas, quotes and newlines — survey verbatims
+ * routinely do, and splitting on lines corrupts exactly those rows.
+ */
+function parseGrid(text) {
+  let input = text.startsWith(BOM) ? text.slice(BOM.length) : text;
+
+  const grid = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  let fieldWasQuoted = false;
+
+  for (let i = 0; i < input.length; i += 1) {
+    const char = input[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (input[i + 1] === '"') {
+          field += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+      fieldWasQuoted = true;
+    } else if (char === ',') {
+      row.push(field);
+      field = '';
+      fieldWasQuoted = false;
+    } else if (char === '\r' || char === '\n') {
+      if (char === '\r' && input[i + 1] === '\n') i += 1;
+      row.push(field);
+      // A trailing newline must not produce a phantom empty row.
+      if (row.length > 1 || row[0] !== '' || fieldWasQuoted) grid.push(row);
+      row = [];
+      field = '';
+      fieldWasQuoted = false;
+    } else {
+      field += char;
+    }
+  }
+
+  if (field !== '' || row.length > 0 || fieldWasQuoted) {
+    row.push(field);
+    grid.push(row);
+  }
+
+  return grid;
+}
+
+/** Removes the leading apostrophe added by neutralizeFormula. */
+function denormalizeFormula(text) {
+  if (typeof text !== 'string') return text;
+  if (text.length > 1 && text[0] === "'" && /^[=+\-@\t\r]/.test(text[1])) {
+    return text.slice(1);
+  }
+  return text;
+}
+
+module.exports = {
+  toCsv,
+  fromCsv,
+  escapeField,
+  neutralizeFormula,
+  denormalizeFormula,
+  BOM,
+};

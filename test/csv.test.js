@@ -1,7 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { toCsv, escapeField, neutralizeFormula, BOM } = require('../src/lib/csv');
+const {
+  toCsv,
+  fromCsv,
+  escapeField,
+  neutralizeFormula,
+  denormalizeFormula,
+  BOM,
+} = require('../src/lib/csv');
 
 const stripBom = (text) => (text.startsWith(BOM) ? text.slice(BOM.length) : text);
 const lines = (csv) => stripBom(csv).trimEnd().split('\r\n');
@@ -95,4 +102,101 @@ test('the formula guard can be disabled explicitly', () => {
 test('ordinary text is left completely alone', () => {
   assert.equal(neutralizeFormula('Great product'), 'Great product');
   assert.equal(neutralizeFormula(''), '');
+});
+
+// --- parsing ---------------------------------------------------------------
+
+test('parses a simple table into objects keyed by header', () => {
+  const rows = fromCsv('a,b\r\n1,2\r\n');
+  assert.deepEqual(rows, [{ a: '1', b: '2' }]);
+});
+
+test('parses quoted fields containing commas, quotes and newlines', () => {
+  const csv = 'v\r\n"a,b"\r\n"say ""hi"""\r\n"line1\nline2"\r\n';
+  const rows = fromCsv(csv);
+
+  assert.equal(rows[0].v, 'a,b');
+  assert.equal(rows[1].v, 'say "hi"');
+  assert.equal(rows[2].v, 'line1\nline2');
+});
+
+test('a leading BOM is not absorbed into the first column name', () => {
+  const rows = fromCsv(`${BOM}a,b\r\n1,2\r\n`);
+  assert.deepEqual(Object.keys(rows[0]), ['a', 'b']);
+});
+
+test('empty fields parse as null so blanks stay distinguishable', () => {
+  const rows = fromCsv('a,b,c\r\n1,,3\r\n');
+  assert.equal(rows[0].b, null);
+});
+
+test('a header-only file parses to no rows', () => {
+  assert.deepEqual(fromCsv('a,b\r\n'), []);
+  assert.deepEqual(fromCsv(''), []);
+});
+
+test('a trailing newline does not create a phantom empty row', () => {
+  assert.equal(fromCsv('a\r\n1\r\n').length, 1);
+  assert.equal(fromCsv('a\n1\n').length, 1);
+});
+
+test('LF-only line endings parse the same as CRLF', () => {
+  assert.deepEqual(fromCsv('a,b\n1,2\n'), fromCsv('a,b\r\n1,2\r\n'));
+});
+
+test('a quoted empty field is a real row, not a phantom', () => {
+  const rows = fromCsv('a\r\n""\r\n');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].a, null);
+});
+
+test('declared columns are coerced to numbers and booleans', () => {
+  const rows = fromCsv('n,b,s\r\n4,TRUE,hello\r\n', {
+    types: { n: 'number', b: 'boolean' },
+  });
+
+  assert.equal(rows[0].n, 4);
+  assert.equal(rows[0].b, true);
+  assert.equal(rows[0].s, 'hello', 'undeclared columns stay strings');
+});
+
+test('undeclared numeric-looking values stay strings', () => {
+  // A postcode or version number must not silently become a quantity.
+  const rows = fromCsv('code\r\n02134\r\n');
+  assert.equal(rows[0].code, '02134');
+});
+
+test('a declared number column that is not numeric becomes null, not NaN', () => {
+  const rows = fromCsv('n\r\nabc\r\n', { types: { n: 'number' } });
+  assert.equal(rows[0].n, null);
+});
+
+test('FALSE parses as false rather than a truthy string', () => {
+  const rows = fromCsv('b\r\nFALSE\r\n', { types: { b: 'boolean' } });
+  assert.equal(rows[0].b, false);
+});
+
+test('the export-time formula guard is undone when reading back', () => {
+  const rows = fromCsv("v\r\n'=SUM(A1:A9)\r\n");
+  assert.equal(rows[0].v, '=SUM(A1:A9)', 'JSON consumers should see what was typed');
+});
+
+test('an apostrophe in ordinary text is preserved', () => {
+  assert.equal(denormalizeFormula("it's fine"), "it's fine");
+  assert.equal(fromCsv("v\r\n\"it's fine\"\r\n")[0].v, "it's fine");
+});
+
+test('round-trips values through write and read unchanged', () => {
+  const rows = [
+    { id: 'a', text: 'Multi\nline, with "quotes"', n: 4, ok: true },
+    { id: 'b', text: '=formula', n: null, ok: false },
+    { id: 'c', text: 'Café — 日本語', n: -2.5, ok: true },
+  ];
+  const columns = ['id', 'text', 'n', 'ok'];
+
+  const parsed = fromCsv(toCsv(rows, columns), {
+    types: { n: 'number', ok: 'boolean' },
+  });
+
+  assert.deepEqual(parsed, rows);
 });

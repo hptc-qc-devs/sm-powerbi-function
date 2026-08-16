@@ -140,7 +140,7 @@ changed responses, merged into the stored dataset.
 - `src/functions/syncTimer.js`: timer trigger, schedule from app settings
   (wizard-configurable). `src/functions/syncNow.js`: admin-key HTTP trigger.
 
-### M3 — Serving endpoints (what Power BI calls)
+### M3 — Serving endpoints (what Power BI calls) ✅ done
 - `GET /api/surveys/{id}/data/{table}` — serve `latest/{table}.csv` from blob
   (`table` ∈ surveys|questions|choices|responses|answers|flat), with
   `?format=json` option. Function-key auth, streamed, fast.

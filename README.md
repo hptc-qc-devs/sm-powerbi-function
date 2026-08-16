@@ -8,10 +8,10 @@ tables, and serves them over HTTPS for Power BI to consume on scheduled
 refresh. You deploy it into your own Azure subscription, so your survey data
 and credentials never leave your infrastructure.
 
-> **Status: early development.** Direct-mode endpoints and the scheduled sync
-> into Blob Storage work today. The endpoints that *serve* the synced tables
-> to Power BI are next, followed by the setup wizard and one-click deploy —
-> see [`docs/ROADMAP.md`](docs/ROADMAP.md). Contributions welcome.
+> **Status: early development.** The data pipeline works end to end — sync
+> from SurveyMonkey into Blob Storage, and serve the tables to Power BI. The
+> setup wizard and one-click deploy are next, so setup is still manual for now
+> — see [`docs/ROADMAP.md`](docs/ROADMAP.md). Contributions welcome.
 
 ## Why this exists
 
@@ -135,6 +135,8 @@ curl http://localhost:7071/api/surveys/<survey-id>/flattened-responses
 |---|---|---|
 | `GET /api/health` | function key | Liveness check; confirms Key Vault is reachable. Does not call SurveyMonkey. |
 | `GET /api/surveys` | function key | Lists surveys visible to your token. Use it to find survey IDs. |
+| `GET /api/surveys/{surveyId}/data/{table}` | function key | **The Power BI feed.** Serves a synced table. `?format=json`, `?snapshot=YYYY-MM-DD`. |
+| `GET /api/surveys/{surveyId}/status` | function key | Last sync time, row counts, available snapshots. |
 | `POST /api/sync` | admin key | Syncs every configured survey now. `?full=true` re-pulls everything. |
 | `POST /api/sync/{surveyId}` | admin key | Syncs one survey now. |
 | `GET /api/surveys/{surveyId}/flattened-responses` | function key | Direct mode: pulls and flattens live, storing nothing. |
@@ -142,10 +144,10 @@ curl http://localhost:7071/api/surveys/<survey-id>/flattened-responses
 Sync also runs automatically on the `SYNC_SCHEDULE` timer (default: every six
 hours).
 
-The sync writes to Blob Storage. **The endpoints that serve those files to
-Power BI are the next milestone** — until then, Power BI connects through
-direct mode, and you can inspect synced output directly in your storage
-account.
+`{table}` is one of `surveys`, `questions`, `choices`, `responses`, `answers`,
+or `flat`. The data endpoints read files the sync already produced, so they
+make no SurveyMonkey API calls — which is why Power BI can refresh as often as
+you like.
 
 ### Output schema
 
@@ -173,16 +175,19 @@ question gives you the number, not just the label.
 
 ## Connecting Power BI
 
-Power BI Desktop and Service use the **Web** connector pointed at:
+The quickest version: Power BI Desktop → **Get Data** → **Web** →
+**Advanced**, with
 
-```
-https://<your-function-app>.azurewebsites.net/api/surveys/<surveyId>/flattened-responses
-```
+- URL: `https://<your-app>.azurewebsites.net/api/surveys/<surveyId>/data/flat`
+- Header: `x-functions-key` = your function key
 
-The function key is the credential. Supply it as an `x-functions-key` header
-rather than embedding it in the URL, so it isn't stored in plain text in the
-query string. A full walkthrough including scheduled refresh setup is coming
-in `docs/powerbi.md`.
+That gives you one wide table. For the full five-table model — including a
+copy-paste Power Query script that loads all of them, the relationships to
+create, ready-made DAX measures, and how to make scheduled refresh work in the
+Power BI Service — see **[`docs/powerbi.md`](docs/powerbi.md)**.
+
+Supply the key as a header rather than in the URL so it isn't stored in plain
+text in the query string.
 
 ## Deploying to Azure
 
@@ -218,8 +223,9 @@ the tightest coverage.
 
 ## Current limitations
 
-- **Synced files aren't served over HTTP yet.** The sync writes them; the
-  endpoints Power BI would read them from are the next milestone.
+- **Setup is manual.** Deploying, storing a token, and configuring app
+  settings are all hand-done today. The setup wizard and one-click deploy are
+  the next milestones.
 - **First sync of a very large survey can hit the Function timeout.** It's a
   full pull, and Consumption plans cap at 10 minutes. Later syncs are
   incremental and much faster. Narrowing `SYNC_SURVEY_IDS` works around it.

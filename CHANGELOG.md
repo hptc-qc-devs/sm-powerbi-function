@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Data endpoints that serve the synced tables to Power BI**, completing the
+  pipeline. `GET /api/surveys/{surveyId}/data/{table}` returns a synced table
+  without calling SurveyMonkey at all, so Power BI refresh frequency no longer
+  affects API usage.
+  - `?format=json` returns typed rows — numbers and booleans come back as
+    numbers and booleans, driven by declared column types rather than guessed
+    from values.
+  - `?snapshot=YYYY-MM-DD` serves a frozen snapshot for trend reporting.
+  - A 404 distinguishes "never synced" from "wrong table name" and says what
+    to do about it.
+- `GET /api/surveys/{surveyId}/status` reporting last sync time, mode, row
+  counts per table, and which snapshots exist.
+- A CSV parser (`fromCsv`) completing the round trip, including undoing the
+  export-time formula guard so JSON consumers see the original text.
+- [`docs/powerbi.md`](docs/powerbi.md): a full Power BI walkthrough — a
+  copy-paste Power Query script that loads all five tables, the relationships
+  to create, DAX measures that use `value_numeric`, how to make scheduled
+  refresh work in the Power BI Service, and troubleshooting.
+
 - **Storage-backed sync.** A timer-triggered job pulls from SurveyMonkey on
   its own schedule and writes analytics-ready tables to Blob Storage, so
   Power BI refreshes read static files instead of re-pulling from

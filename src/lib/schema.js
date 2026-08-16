@@ -362,6 +362,23 @@ const TABLE_COLUMNS = {
 
 const TABLE_NAMES = Object.keys(TABLE_COLUMNS);
 
+/**
+ * Non-string column types, per table.
+ *
+ * CSV carries no type information, so this is what lets the data endpoints
+ * hand back real numbers and booleans when serving JSON. Declaring them is
+ * deliberate: inferring types from values would misread identifiers that
+ * happen to look numeric.
+ */
+const TABLE_TYPES = {
+  surveys: { question_count: 'number', page_count: 'number', response_count: 'number' },
+  questions: { page_position: 'number', position: 'number', is_required: 'boolean' },
+  choices: { position: 'number', weight: 'number', is_na: 'boolean' },
+  responses: { total_time_seconds: 'number' },
+  answers: { value_numeric: 'number', is_skipped: 'boolean' },
+  flat: { value_numeric: 'number', is_skipped: 'boolean' },
+};
+
 // --- helpers ---------------------------------------------------------------
 
 function firstHeading(q) {
@@ -412,4 +429,5 @@ module.exports = {
   toNumber,
   TABLE_COLUMNS,
   TABLE_NAMES,
+  TABLE_TYPES,
 };

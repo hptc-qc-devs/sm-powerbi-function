@@ -45,6 +45,26 @@ smClient.getResponsesBulk = async () => nextResponses;
 const blobStore = require('../src/lib/blobStore');
 const { syncSurvey } = require('../src/lib/syncEngine');
 
+// Capture the serving handlers so the sync-then-serve path can be exercised
+// against real storage.
+const azureFunctions = require('@azure/functions');
+const handlers = {};
+azureFunctions.app.http = (name, config) => {
+  handlers[name] = config.handler;
+};
+azureFunctions.app.timer = () => {};
+require('../src/functions/getData');
+require('../src/functions/getStatus');
+
+const fnContext = { log() {}, warn() {}, error() {} };
+const serve = (params, query = {}) =>
+  handlers.getData(
+    { params, query: { get: (k) => (k in query ? query[k] : null) } },
+    fnContext
+  );
+const serveStatus = (params) =>
+  handlers.getStatus({ params, query: { get: () => null } }, fnContext);
+
 const SURVEY_ID = '888222';
 
 // --- storage primitives ----------------------------------------------------
@@ -208,4 +228,77 @@ test('snapshots are written to real storage when history is enabled', { skip }, 
 
   assert.ok(snapshot);
   assert.equal(snapshot, latest, 'a snapshot is a frozen copy of latest');
+});
+
+// --- sync, then serve ------------------------------------------------------
+
+test('a synced table is served straight back out as CSV', { skip }, async () => {
+  const res = await serve({ surveyId: SURVEY_ID, table: 'answers' });
+
+  assert.equal(res.status, 200);
+  assert.match(res.headers['Content-Type'], /text\/csv/);
+  assert.equal(res.body, await blobStore.readText(blobStore.paths.latest(SURVEY_ID, 'answers')));
+});
+
+test('serving as JSON returns typed values from real storage', { skip }, async () => {
+  const res = await serve({ surveyId: SURVEY_ID, table: 'answers' }, { format: 'json' });
+
+  assert.equal(res.status, 200);
+
+  const rating = res.jsonBody.data.find(
+    (r) => r.response_id === 'resp_complete' && r.question_id === 'q_rating'
+  );
+  assert.equal(rating.value_numeric, 4, 'a weighted rating must survive as a number');
+  assert.equal(rating.row_text, 'Overall rating');
+  assert.equal(rating.is_skipped, false);
+
+  const skipped = res.jsonBody.data.find((r) => r.is_skipped === true);
+  assert.equal(skipped.value_text, null);
+});
+
+test('survey text with quotes, commas and newlines survives the full round trip', { skip }, async () => {
+  const res = await serve({ surveyId: SURVEY_ID, table: 'answers' }, { format: 'json' });
+
+  const comment = res.jsonBody.data.find((r) => r.question_id === 'q_comments' && r.value_text);
+  assert.equal(
+    comment.value_text,
+    'Faster exports, please. Also: "dark mode", commas, and\nnewlines.',
+    'the verbatim must come back exactly as the respondent typed it'
+  );
+});
+
+test('the formula guard is applied in CSV and undone in JSON', { skip }, async () => {
+  const csv = await serve({ surveyId: SURVEY_ID, table: 'answers' });
+  assert.ok(csv.body.includes("'=SUM(A1:A9)"), 'CSV must stay safe to open in Excel');
+
+  const json = await serve({ surveyId: SURVEY_ID, table: 'answers' }, { format: 'json' });
+  const formula = json.jsonBody.data.find((r) => r.value_text === '=SUM(A1:A9)');
+  assert.ok(formula, 'JSON consumers should see the original text');
+});
+
+test('status reflects a real sync and lists real snapshots', { skip }, async () => {
+  const id = 'history-survey';
+  const res = await serveStatus({ surveyId: id });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.jsonBody.synced, true);
+  assert.equal(res.jsonBody.history_enabled, true);
+  assert.deepEqual(res.jsonBody.snapshots, ['2025-06-30']);
+  assert.ok(res.jsonBody.row_counts.answers > 0);
+});
+
+test('a snapshot is servable by date from real storage', { skip }, async () => {
+  const res = await serve(
+    { surveyId: 'history-survey', table: 'answers' },
+    { snapshot: '2025-06-30' }
+  );
+
+  assert.equal(res.status, 200);
+  assert.ok(res.body.includes('Conference booth'));
+});
+
+test('an unsynced survey reports not_synced rather than an empty table', { skip }, async () => {
+  const res = await serve({ surveyId: 'never-synced-survey', table: 'answers' });
+  assert.equal(res.status, 404);
+  assert.equal(res.jsonBody.error, 'not_synced');
 });
