@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
-const { listSurveys, SurveyMonkeyAuthError, SurveyMonkeyScopeError } = require('../lib/surveyMonkeyClient');
+const { listSurveys } = require('../lib/surveyMonkeyClient');
+const { handleSurveyMonkeyError } = require('../lib/apiErrors');
 const { makeLogger } = require('../lib/logger');
 
 /**
@@ -7,9 +8,9 @@ const { makeLogger } = require('../lib/logger');
  *
  * Returns the list of surveys visible to the configured access token:
  * id, title, response_count, date_created, date_modified. No response
- * data — this is a discovery/validation endpoint, not the data feed.
- * Used during setup (SOW 2.9 endpoint validation) and as a quick sanity
- * check that the token still works.
+ * data — this is a discovery endpoint, not the data feed. Useful as a
+ * quick check that the stored token still works, and reused by the setup
+ * wizard's survey browser.
  */
 app.http('listSurveys', {
   methods: ['GET'],
@@ -40,43 +41,3 @@ app.http('listSurveys', {
     }
   },
 });
-
-/**
- * Shared error-to-HTTP-response mapping for SurveyMonkey-backed endpoints.
- * Exported so the other data endpoint can reuse the exact same mapping —
- * one place to keep the 401/403 story consistent, per SOW 2.9.
- */
-function handleSurveyMonkeyError(err, log) {
-  if (err instanceof SurveyMonkeyAuthError) {
-    log.error('SurveyMonkey auth error', { statusCode: 401, errorName: err.name });
-    return {
-      status: 502,
-      jsonBody: {
-        error: 'surveymonkey_token_invalid',
-        message:
-          'The stored SurveyMonkey access token was rejected (401). It has likely been ' +
-          'revoked. Re-run the OAuth setup script to re-authorize; this requires a human ' +
-          'because SurveyMonkey does not issue refresh tokens.',
-      },
-    };
-  }
-
-  if (err instanceof SurveyMonkeyScopeError) {
-    log.error('SurveyMonkey scope error', { statusCode: 403, errorName: err.name });
-    return {
-      status: 502,
-      jsonBody: {
-        error: 'surveymonkey_insufficient_scope',
-        message: 'The access token is valid but lacks permission for this resource (403).',
-      },
-    };
-  }
-
-  log.error('Unhandled SurveyMonkey API error', { errorName: err.name });
-  return {
-    status: 502,
-    jsonBody: { error: 'surveymonkey_api_error', message: 'Upstream SurveyMonkey API call failed.' },
-  };
-}
-
-module.exports = { handleSurveyMonkeyError };

@@ -12,17 +12,16 @@
  * Two modes:
  *
  *   node scripts/setupOAuth.js --store-token
- *     Use this now. You already completed the OAuth flow in Postman and
- *     have a working access token — this just writes it into Key Vault so
- *     the deployed Function can use it. Nothing about the OAuth flow is
- *     re-run.
+ *     You already have a working access token from your SurveyMonkey
+ *     Developer App — this just writes it into Key Vault so the deployed
+ *     Function can use it. Nothing about the OAuth flow is re-run.
  *
  *   node scripts/setupOAuth.js --full-flow
- *     Use this LATER, only if the stored token gets revoked (a 401 from
- *     the deployed Function means this). Walks through SurveyMonkey's
- *     three-step OAuth flow from scratch and stores the resulting token.
- *     Reminder: SurveyMonkey does not issue refresh tokens, so this manual
- *     re-authorization is the only recovery path for a revoked token.
+ *     Walks through SurveyMonkey's three-step OAuth flow from scratch and
+ *     stores the resulting token. Use it for a first-time setup without a
+ *     token in hand, or to recover from a revoked one (a 401 from the
+ *     deployed Function means this). SurveyMonkey does not issue refresh
+ *     tokens, so this manual re-authorization is the only recovery path.
  */
 
 const readline = require('node:readline/promises');
@@ -40,7 +39,7 @@ async function prompt(question) {
 
 async function storeExistingToken() {
   console.log('\n--- Store an existing SurveyMonkey access token ---\n');
-  const token = await prompt('Paste the access token obtained via Postman/dev portal: ');
+  const token = await prompt('Paste the access token from your SurveyMonkey Developer App: ');
   if (!token) {
     console.error('No token entered. Aborting.');
     process.exit(1);
@@ -113,9 +112,9 @@ async function runFullOAuthFlow() {
 
   console.log(`\nSuccess. New access token stored in Key Vault under "${secretName}".`);
   console.log(
-    'Reminder for the ops runbook: this token does not expire on a fixed schedule per ' +
-      "SurveyMonkey's docs, but can be revoked by the user at any time. There is no " +
-      'silent refresh — re-run this script with --full-flow if it happens again.\n'
+    "Note: this token does not expire on a fixed schedule per SurveyMonkey's docs, " +
+      'but can be revoked by the user at any time. There is no silent refresh — ' +
+      're-run this script with --full-flow if that happens.\n'
   );
 }
 

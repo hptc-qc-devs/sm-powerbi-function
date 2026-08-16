@@ -1,8 +1,25 @@
 {
   "name": "sm-powerbi-function",
-  "version": "1.0.0",
-  "description": "Node.js Azure Function integration layer between SurveyMonkey API and Power BI",
+  "version": "0.1.0",
+  "description": "Self-hosted Azure Function that connects SurveyMonkey surveys to Power BI",
   "main": "src/functions/*.js",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hptc-qc-devs/sm-powerbi-function.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hptc-qc-devs/sm-powerbi-function/issues"
+  },
+  "homepage": "https://github.com/hptc-qc-devs/sm-powerbi-function#readme",
+  "keywords": [
+    "surveymonkey",
+    "powerbi",
+    "azure-functions",
+    "etl",
+    "survey-data",
+    "connector"
+  ],
   "engines": {
     "node": ">=18.0.0 <21.0.0"
   },

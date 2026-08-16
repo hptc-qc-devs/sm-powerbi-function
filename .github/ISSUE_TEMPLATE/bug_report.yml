@@ -1,0 +1,74 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug.
+
+        **Please don't paste real survey data.** Redact respondent answers and
+        question wording before sharing any JSON — replace them with
+        placeholders like `"text": "<redacted>"`. The structure is what helps
+        us; the content isn't.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Called GET /api/surveys/12345/flattened-responses
+        2. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where are you running it?
+      options:
+        - Local (func start)
+        - Deployed Azure Function App
+        - Both
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      placeholder: 'e.g. 20.11.0'
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Version or commit
+      placeholder: 'e.g. v0.1.0, or the commit SHA'
+
+  - type: textarea
+    id: question-type
+    attributes:
+      label: SurveyMonkey question type (if the bug is about flattening)
+      description: >
+        Which question family/subtype is affected — matrix, ranking, rating,
+        multiple choice with "Other", etc.? A redacted sample of the response
+        JSON structure is very helpful here.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output or error messages
+      description: >
+        Console output, HTTP response body, or Application Insights entries.
+        Remove any tokens, keys, or survey content first.
+      render: shell

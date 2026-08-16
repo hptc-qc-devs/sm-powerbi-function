@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest an improvement or new capability
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. Before filing, it's worth checking
+        [`docs/ROADMAP.md`](../../blob/master/docs/ROADMAP.md) — the idea may
+        already be planned, in which case comment on the related issue instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: >
+        Describe the situation you're stuck in, rather than the solution you
+        have in mind. Understanding the underlying need often leads to a
+        better answer.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to see?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Including workarounds you're using today.
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Would you be willing to work on this?
+      options:
+        - label: I'd be interested in contributing this myself

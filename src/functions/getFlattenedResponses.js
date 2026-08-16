@@ -2,25 +2,25 @@ const { app } = require('@azure/functions');
 const { getResponsesBulk } = require('../lib/surveyMonkeyClient');
 const { getLookupsForSurvey } = require('../lib/surveyDetailsCache');
 const { flattenSurveyResponses } = require('../lib/flatten');
+const { handleSurveyMonkeyError } = require('../lib/apiErrors');
 const { makeLogger } = require('../lib/logger');
-const { handleSurveyMonkeyError } = require('./listSurveys');
 
 /**
  * GET /api/surveys/{surveyId}/flattened-responses
  *
- * This is the endpoint Power BI's Web connector calls on scheduled refresh.
- * Returns flat, analytics-ready rows: one row per response x question x
- * answer, per the locked-in Phase 1 schema.
+ * Direct (live) mode: fetches from SurveyMonkey and flattens on every
+ * request, returning one row per response x question x answer. Nothing is
+ * stored, so `snapshot_date` marks when this particular fetch ran.
  *
- * Phase 1 is intentionally stateless — every call re-fetches and re-flattens
- * from SurveyMonkey directly. There is no Blob Storage snapshot yet (that's
- * Phase 2 per SOW 3.1); "snapshot_date" here just marks when this particular
- * fetch ran, since there is no append-only history to look back through yet.
+ * Because every call re-pulls the full survey, this mode is bounded by
+ * SurveyMonkey's rate limits and by request timeouts on large surveys. It
+ * suits small surveys and quick validation; the synced-to-storage endpoints
+ * are the better fit for regular Power BI refreshes.
  *
  * Optional query param `modifiedSince` (ISO 8601) narrows the pull to
  * responses modified on/after that timestamp — useful for manual testing,
- * though Power BI itself will typically call this with no params and pull
- * the current full set of completed responses.
+ * though callers typically pass no params and pull the current full set of
+ * completed responses.
  */
 app.http('getFlattenedResponses', {
   methods: ['GET'],
