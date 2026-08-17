@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [1.0.0] - 2026-08-17
+
+First public release. Everything below ships working end to end: one-click
+deployment into your own Azure subscription, a browser setup wizard, scheduled
+incremental sync from SurveyMonkey into Blob Storage, and a star-schema output
+Power BI can model directly.
+
 ### Added
 
 - **One-click deployment.** A Deploy to Azure button and

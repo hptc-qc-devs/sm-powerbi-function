@@ -185,7 +185,7 @@ All `authLevel: 'admin'` (master key — only the deployer configures):
 - Power Query template file (.pq/.pbit consideration) that builds the whole
   model from one base URL + key.
 
-### M8 — Release
+### M8 — Release ✅ done (v1.0.0)
 - CI release workflow: test → package zip → GitHub Release (the artifact M6's
   button deploys). Tag v1.0.0, changelog, README badges.
 
@@ -203,7 +203,7 @@ All `authLevel: 'admin'` (master key — only the deployer configures):
 
 ## Suggested repo rename
 
-`sm-powerbi-function` → something discoverable, e.g.
+`surveymonkey-powerbi-connector` → something discoverable, e.g.
 `surveymonkey-powerbi-connector`. Decide before v1.0.0 while inbound links
 are few.
 

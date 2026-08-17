@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "12652352395754728245"
+      "templateHash": "15119985192428785577"
     }
   },
   "parameters": {
@@ -55,7 +55,7 @@
     },
     "packageUri": {
       "type": "string",
-      "defaultValue": "https://github.com/hptc-qc-devs/sm-powerbi-function/releases/latest/download/sm-powerbi-function.zip",
+      "defaultValue": "https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector/releases/latest/download/surveymonkey-powerbi-connector.zip",
       "metadata": {
         "description": "Zip package to deploy. Leave as the default to install the latest release; set to an empty string to deploy code yourself with func azure functionapp publish."
       }

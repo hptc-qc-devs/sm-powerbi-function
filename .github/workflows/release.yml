@@ -34,7 +34,7 @@ jobs:
         run: |
           rm -rf node_modules
           npm ci --omit=dev
-          zip -r sm-powerbi-function.zip \
+          zip -r surveymonkey-powerbi-connector.zip \
             host.json package.json package-lock.json \
             src public node_modules \
             -x '*.test.js'
@@ -42,5 +42,5 @@ jobs:
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
-          files: sm-powerbi-function.zip
+          files: surveymonkey-powerbi-connector.zip
           generate_release_notes: true

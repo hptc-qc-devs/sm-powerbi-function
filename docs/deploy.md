@@ -24,13 +24,9 @@ survey scale unless you keep years of snapshots.
 
 ## Option 1 — Deploy to Azure button
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhptc-qc-devs%2Fsm-powerbi-function%2Fmaster%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhptc-qc-devs%2Fsurveymonkey-powerbi-connector%2Fmaster%2Fazuredeploy.json)
 
-> **Before the first tagged release**, the default `packageUri` points at a
-> release that does not exist yet, so the button provisions the
-> infrastructure but installs no code. Until `v1.0.0` is published, set
-> `packageUri` to empty in the portal and deploy the code yourself with
-> `func azure functionapp publish`, or use the CLI route below.
+The button installs the latest published release automatically.
 
 The portal asks for a resource group and a **base name** — 3 to 17 lower-case
 letters and numbers. Everything else has a working default.
