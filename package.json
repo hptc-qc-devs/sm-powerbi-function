@@ -1,17 +1,17 @@
 {
-  "name": "sm-powerbi-function",
-  "version": "0.1.0",
+  "name": "surveymonkey-powerbi-connector",
+  "version": "1.0.0",
   "description": "Self-hosted Azure Function that connects SurveyMonkey surveys to Power BI",
   "main": "src/functions/**/*.js",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hptc-qc-devs/sm-powerbi-function.git"
+    "url": "git+https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector.git"
   },
   "bugs": {
-    "url": "https://github.com/hptc-qc-devs/sm-powerbi-function/issues"
+    "url": "https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector/issues"
   },
-  "homepage": "https://github.com/hptc-qc-devs/sm-powerbi-function#readme",
+  "homepage": "https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector#readme",
   "keywords": [
     "surveymonkey",
     "powerbi",

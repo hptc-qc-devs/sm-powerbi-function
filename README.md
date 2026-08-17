@@ -1,5 +1,9 @@
 # SurveyMonkey → Power BI Connector
 
+[![CI](https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector/actions/workflows/ci.yml/badge.svg)](https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/hptc-qc-devs/surveymonkey-powerbi-connector)](https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Connect your SurveyMonkey surveys to Power BI without writing code.
 
 This is a self-hosted Azure Function that authenticates to SurveyMonkey,
@@ -8,10 +12,11 @@ tables, and serves them over HTTPS for Power BI to consume on scheduled
 refresh. You deploy it into your own Azure subscription, so your survey data
 and credentials never leave your infrastructure.
 
-> **Status: early development.** The pipeline works end to end — sync from
-> SurveyMonkey into Blob Storage, serve the tables to Power BI, and configure
-> the whole thing through a built-in browser wizard. One-click deploy is the
-> remaining gap, so provisioning is still manual — see
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhptc-qc-devs%2Fsurveymonkey-powerbi-connector%2Fmaster%2Fazuredeploy.json)
+
+> **Status: early development, but usable end to end.** Deploy with the button
+> above, finish setup in the built-in browser wizard, and connect Power BI.
+> Remaining work is polish and a tagged release — see
 > [`docs/ROADMAP.md`](docs/ROADMAP.md). Contributions welcome.
 
 ## Why this exists
@@ -95,8 +100,8 @@ the reasoning behind it.
 ## Quickstart (local)
 
 ```bash
-git clone https://github.com/hptc-qc-devs/sm-powerbi-function.git
-cd sm-powerbi-function
+git clone https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector.git
+cd surveymonkey-powerbi-connector
 npm install
 ```
 

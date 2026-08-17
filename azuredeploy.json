@@ -1,0 +1,259 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "15119985192428785577"
+    }
+  },
+  "parameters": {
+    "baseName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 17,
+      "metadata": {
+        "description": "Base name for all resources. Lower-case letters and numbers, 3-17 characters. A unique suffix is appended so names stay globally unique."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Region for all resources. Defaults to the resource group's region."
+      }
+    },
+    "syncSchedule": {
+      "type": "string",
+      "defaultValue": "0 0 */6 * * *",
+      "metadata": {
+        "description": "How often to pull from SurveyMonkey, as an NCRONTAB expression in UTC (six fields, seconds first). The default is every six hours."
+      }
+    },
+    "enableHistory": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Keep a dated snapshot on every sync. Required for quarter-over-quarter and year-over-year reporting, since SurveyMonkey itself only exposes current state."
+      }
+    },
+    "snapshotRetentionDays": {
+      "type": "int",
+      "defaultValue": 90,
+      "minValue": 0,
+      "metadata": {
+        "description": "Delete snapshots older than this many days. 0 keeps them indefinitely. Ignored when history is off."
+      }
+    },
+    "syncSurveyIds": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Which surveys to sync, comma-separated. Leave empty to sync every survey the token can see; narrow this on a large account to stay inside SurveyMonkey's daily API limit."
+      }
+    },
+    "packageUri": {
+      "type": "string",
+      "defaultValue": "https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector/releases/latest/download/surveymonkey-powerbi-connector.zip",
+      "metadata": {
+        "description": "Zip package to deploy. Leave as the default to install the latest release; set to an empty string to deploy code yourself with func azure functionapp publish."
+      }
+    }
+  },
+  "variables": {
+    "suffix": "[substring(uniqueString(resourceGroup().id), 0, 5)]",
+    "storageName": "[toLower(format('{0}{1}', replace(parameters('baseName'), '-', ''), variables('suffix')))]",
+    "functionAppName": "[format('{0}-{1}', parameters('baseName'), variables('suffix'))]",
+    "keyVaultName": "[take(format('{0}-kv-{1}', parameters('baseName'), variables('suffix')), 24)]",
+    "dataContainerName": "survey-data",
+    "blobDataContributorRoleId": "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
+    "keyVaultSecretsOfficerRoleId": "b86a8fe4-44ce-4948-aee5-eccb2c155cd7"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('storageName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "minimumTlsVersion": "TLS1_2",
+        "supportsHttpsTrafficOnly": true,
+        "allowBlobPublicAccess": false,
+        "accessTier": "Hot"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', variables('storageName'), 'default')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}/{2}', variables('storageName'), 'default', variables('dataContainerName'))]",
+      "properties": {
+        "publicAccess": "None"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageName'), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[format('{0}-logs', variables('functionAppName'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
+      "name": "[format('{0}-insights', variables('functionAppName'))]",
+      "location": "[parameters('location')]",
+      "kind": "web",
+      "properties": {
+        "Application_Type": "web",
+        "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-logs', variables('functionAppName')))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-logs', variables('functionAppName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2023-07-01",
+      "name": "[variables('keyVaultName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "family": "A",
+          "name": "standard"
+        },
+        "tenantId": "[subscription().tenantId]",
+        "enableRbacAuthorization": true,
+        "enableSoftDelete": true,
+        "softDeleteRetentionInDays": 7,
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2023-12-01",
+      "name": "[format('{0}-plan', variables('functionAppName'))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Y1",
+        "tier": "Dynamic"
+      },
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2023-12-01",
+      "name": "[variables('functionAppName')]",
+      "location": "[parameters('location')]",
+      "kind": "functionapp,linux",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', format('{0}-plan', variables('functionAppName')))]",
+        "httpsOnly": true,
+        "reserved": true,
+        "siteConfig": {
+          "linuxFxVersion": "Node|22",
+          "ftpsState": "Disabled",
+          "minTlsVersion": "1.2",
+          "http20Enabled": true,
+          "appSettings": "[concat(createArray(createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_WORKER_RUNTIME', 'value', 'node'), createObject('name', 'WEBSITE_NODE_DEFAULT_VERSION', 'value', '~22'), createObject('name', 'AzureWebJobsStorage', 'value', format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').keys[0].value)), createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', reference(resourceId('Microsoft.Insights/components', format('{0}-insights', variables('functionAppName'))), '2020-02-02').ConnectionString), createObject('name', 'KEY_VAULT_URI', 'value', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri), createObject('name', 'SECRETS_BACKEND', 'value', 'keyvault'), createObject('name', 'SM_API_BASE_URL', 'value', 'https://api.surveymonkey.com/v3'), createObject('name', 'SM_ACCESS_TOKEN_SECRET_NAME', 'value', 'surveymonkey-access-token'), createObject('name', 'SM_CLIENT_ID_SECRET_NAME', 'value', 'surveymonkey-client-id'), createObject('name', 'SM_CLIENT_SECRET_SECRET_NAME', 'value', 'surveymonkey-client-secret'), createObject('name', 'STORAGE_ACCOUNT_URL', 'value', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').primaryEndpoints.blob), createObject('name', 'STORAGE_CONTAINER', 'value', variables('dataContainerName')), createObject('name', 'SYNC_SCHEDULE', 'value', parameters('syncSchedule')), createObject('name', 'SYNC_SURVEY_IDS', 'value', parameters('syncSurveyIds')), createObject('name', 'SYNC_HISTORY_ENABLED', 'value', string(parameters('enableHistory'))), createObject('name', 'SYNC_SNAPSHOT_RETENTION_DAYS', 'value', string(parameters('snapshotRetentionDays')))), if(empty(parameters('packageUri')), createArray(), createArray(createObject('name', 'WEBSITE_RUN_FROM_PACKAGE', 'value', parameters('packageUri')))))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', format('{0}-insights', variables('functionAppName')))]",
+        "[resourceId('Microsoft.Web/serverfarms', format('{0}-plan', variables('functionAppName')))]",
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), resourceId('Microsoft.Web/sites', variables('functionAppName')), variables('blobDataContributorRoleId'))]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('blobDataContributorRoleId'))]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2023-12-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), resourceId('Microsoft.Web/sites', variables('functionAppName')), variables('keyVaultSecretsOfficerRoleId'))]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('keyVaultSecretsOfficerRoleId'))]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2023-12-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]",
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "setupWizardUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Open this to finish setup in the browser. Append ?code=<master-key>, which you can copy from the portal under Function App > App keys."
+      },
+      "value": "[format('https://{0}/api/ui', reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2023-12-01').defaultHostName)]"
+    },
+    "functionAppUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Base URL for Power BI connections."
+      },
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2023-12-01').defaultHostName)]"
+    },
+    "functionAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the deployed Function App, for use with the az CLI."
+      },
+      "value": "[variables('functionAppName')]"
+    },
+    "storageAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Storage account holding the synced survey tables."
+      },
+      "value": "[variables('storageName')]"
+    },
+    "keyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "Key Vault holding the SurveyMonkey credentials."
+      },
+      "value": "[variables('keyVaultName')]"
+    }
+  }
+}

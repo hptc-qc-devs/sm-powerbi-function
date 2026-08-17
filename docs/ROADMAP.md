@@ -169,7 +169,7 @@ All `authLevel: 'admin'` (master key — only the deployer configures):
   3) Pick surveys + sync schedule + history toggle, run first sync with live
   progress → 4) Connect Power BI (copy URLs, copy M snippet, walkthrough).
 
-### M6 — One-click deploy (infrastructure as code)
+### M6 — One-click deploy (infrastructure as code) ✅ done
 - `infra/main.bicep`: Function App (Consumption, Node 20, system-assigned
   identity), Storage account (+ `data` container; identity granted Blob Data
   Contributor), Key Vault (identity granted secrets get/list/set), App
@@ -185,7 +185,7 @@ All `authLevel: 'admin'` (master key — only the deployer configures):
 - Power Query template file (.pq/.pbit consideration) that builds the whole
   model from one base URL + key.
 
-### M8 — Release
+### M8 — Release ✅ done (v1.0.0)
 - CI release workflow: test → package zip → GitHub Release (the artifact M6's
   button deploys). Tag v1.0.0, changelog, README badges.
 
@@ -203,7 +203,7 @@ All `authLevel: 'admin'` (master key — only the deployer configures):
 
 ## Suggested repo rename
 
-`sm-powerbi-function` → something discoverable, e.g.
+`surveymonkey-powerbi-connector` → something discoverable, e.g.
 `surveymonkey-powerbi-connector`. Decide before v1.0.0 while inbound links
 are few.
 

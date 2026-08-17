@@ -47,3 +47,27 @@ jobs:
 
       - name: Integration tests
         run: npm run test:integration
+
+  infra:
+    name: Infrastructure template
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # azuredeploy.json is what the Deploy to Azure button deploys, so it
+      # must be the current compilation of main.bicep. The failure mode this
+      # guards against is editing the Bicep, forgetting to recompile, and
+      # shipping a button that installs the previous infrastructure.
+      - name: Recompile Bicep and check the committed template is current
+        run: |
+          az bicep build --file infra/main.bicep --outfile /tmp/azuredeploy.json
+
+          # The generator version is written into metadata and moves with the
+          # toolchain, so it is stripped before comparing.
+          strip() { jq -S 'del(.metadata._generator)' "$1"; }
+
+          if ! diff -u <(strip azuredeploy.json) <(strip /tmp/azuredeploy.json); then
+            echo "::error::azuredeploy.json is out of date. Run: az bicep build --file infra/main.bicep --outfile azuredeploy.json"
+            exit 1
+          fi
