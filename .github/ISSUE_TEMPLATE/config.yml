@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector/security/advisories/new
+    url: https://github.com/Harsha99-99/surveymonkey-powerbi-connector/security/advisories/new
     about: Report security issues privately, not as a public issue.
   - name: Question or idea
-    url: https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector/discussions
+    url: https://github.com/Harsha99-99/surveymonkey-powerbi-connector/discussions
     about: Ask setup questions or discuss ideas before filing an issue.

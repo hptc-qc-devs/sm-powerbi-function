@@ -24,7 +24,7 @@ survey scale unless you keep years of snapshots.
 
 ## Option 1 — Deploy to Azure button
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhptc-qc-devs%2Fsurveymonkey-powerbi-connector%2Fmaster%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FHarsha99-99%2Fsurveymonkey-powerbi-connector%2Fmaster%2Fazuredeploy.json)
 
 The button installs the latest published release automatically.
 

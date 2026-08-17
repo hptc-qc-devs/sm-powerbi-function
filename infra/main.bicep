@@ -44,7 +44,7 @@ param snapshotRetentionDays int = 90
 param syncSurveyIds string = ''
 
 @description('Zip package to deploy. Leave as the default to install the latest release; set to an empty string to deploy code yourself with func azure functionapp publish.')
-param packageUri string = 'https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector/releases/latest/download/surveymonkey-powerbi-connector.zip'
+param packageUri string = 'https://github.com/Harsha99-99/surveymonkey-powerbi-connector/releases/latest/download/surveymonkey-powerbi-connector.zip'
 
 // A deterministic suffix keeps globally-unique names stable across repeat
 // deployments to the same resource group, so redeploying updates in place
