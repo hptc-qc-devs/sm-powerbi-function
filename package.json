@@ -6,12 +6,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector.git"
+    "url": "git+https://github.com/Harsha99-99/surveymonkey-powerbi-connector.git"
   },
   "bugs": {
-    "url": "https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector/issues"
+    "url": "https://github.com/Harsha99-99/surveymonkey-powerbi-connector/issues"
   },
-  "homepage": "https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector#readme",
+  "homepage": "https://github.com/Harsha99-99/surveymonkey-powerbi-connector#readme",
   "keywords": [
     "surveymonkey",
     "powerbi",

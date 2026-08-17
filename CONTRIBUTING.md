@@ -17,7 +17,7 @@ make it work for more people are exactly what it needs.
 ## Getting set up
 
 ```bash
-git clone https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector.git
+git clone https://github.com/Harsha99-99/surveymonkey-powerbi-connector.git
 cd surveymonkey-powerbi-connector
 npm install
 npm test

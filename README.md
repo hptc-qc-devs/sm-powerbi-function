@@ -1,7 +1,7 @@
 # SurveyMonkey → Power BI Connector
 
-[![CI](https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector/actions/workflows/ci.yml/badge.svg)](https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/hptc-qc-devs/surveymonkey-powerbi-connector)](https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector/releases/latest)
+[![CI](https://github.com/Harsha99-99/surveymonkey-powerbi-connector/actions/workflows/ci.yml/badge.svg)](https://github.com/Harsha99-99/surveymonkey-powerbi-connector/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Harsha99-99/surveymonkey-powerbi-connector)](https://github.com/Harsha99-99/surveymonkey-powerbi-connector/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Connect your SurveyMonkey surveys to Power BI without writing code.
@@ -12,7 +12,7 @@ tables, and serves them over HTTPS for Power BI to consume on scheduled
 refresh. You deploy it into your own Azure subscription, so your survey data
 and credentials never leave your infrastructure.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhptc-qc-devs%2Fsurveymonkey-powerbi-connector%2Fmaster%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FHarsha99-99%2Fsurveymonkey-powerbi-connector%2Fmaster%2Fazuredeploy.json)
 
 > **Status: early development, but usable end to end.** Deploy with the button
 > above, finish setup in the built-in browser wizard, and connect Power BI.
@@ -100,7 +100,7 @@ the reasoning behind it.
 ## Quickstart (local)
 
 ```bash
-git clone https://github.com/hptc-qc-devs/surveymonkey-powerbi-connector.git
+git clone https://github.com/Harsha99-99/surveymonkey-powerbi-connector.git
 cd surveymonkey-powerbi-connector
 npm install
 ```
