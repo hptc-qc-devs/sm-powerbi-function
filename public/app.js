@@ -17,6 +17,17 @@
   var KEY = new URLSearchParams(location.search).get('code') || '';
   var state = { surveys: [], selected: new Set(), syncedIds: [] };
 
+  // The key arrives in the URL because that is the only way Azure lets the
+  // browser load this page at all. Once read, it is scrubbed from the address
+  // bar so the master key does not sit in browser history, get copied when
+  // someone shares the link, or reappear from the back button. It stays in
+  // memory for the life of the tab, which is all the wizard needs.
+  if (KEY && window.history && window.history.replaceState) {
+    var cleaned = new URL(location.href);
+    cleaned.searchParams.delete('code');
+    window.history.replaceState({}, document.title, cleaned.pathname + cleaned.search + cleaned.hash);
+  }
+
   // --- API ----------------------------------------------------------------
 
   async function api(path, options) {

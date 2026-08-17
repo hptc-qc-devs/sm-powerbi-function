@@ -59,11 +59,11 @@ app.http('getData', {
       };
     }
 
-    const blobPath = snapshot
-      ? blobStore.paths.snapshot(surveyId, snapshot, table)
-      : blobStore.paths.latest(surveyId, table);
-
     try {
+      const blobPath = snapshot
+        ? blobStore.paths.snapshot(surveyId, snapshot, table)
+        : await resolveCurrentPath(surveyId, table);
+
       // Buffered rather than streamed. The sync already holds a whole survey
       // in memory to build these tables, so buffering one table to serve it
       // does not raise the ceiling, and it keeps the response handling simple.
@@ -104,6 +104,28 @@ app.http('getData', {
     }
   },
 });
+
+/**
+ * Resolves which copy of a table is currently authoritative.
+ *
+ * The sync writes each table set into its own version directory and then
+ * publishes it by writing `current_version` into state.json, so reading the
+ * pointer first is what guarantees a caller sees one coherent set rather than
+ * a half-replaced one.
+ *
+ * Deployments synced before versioning existed have no pointer and their data
+ * still lives under `latest/`, so that path remains the fallback. It stops
+ * being used the first time they sync again.
+ */
+async function resolveCurrentPath(surveyId, table) {
+  const state = await blobStore.readJson(blobStore.paths.state(surveyId)).catch(() => null);
+
+  if (state && state.current_version) {
+    return blobStore.paths.version(surveyId, state.current_version, table);
+  }
+
+  return blobStore.paths.latest(surveyId, table);
+}
 
 function notSyncedBody(surveyId, table, snapshot) {
   if (snapshot) {

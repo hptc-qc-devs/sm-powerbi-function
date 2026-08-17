@@ -16,9 +16,38 @@
  * Power BI users and the setup wizard can act on them differently.
  */
 
-const { SurveyMonkeyAuthError, SurveyMonkeyScopeError } = require('./surveyMonkeyClient');
+const {
+  SurveyMonkeyAuthError,
+  SurveyMonkeyScopeError,
+  SurveyMonkeyRateLimitError,
+} = require('./surveyMonkeyClient');
 
 function handleSurveyMonkeyError(err, log) {
+  // 503 rather than 502: the upstream is healthy and explicitly asking us to
+  // come back later, which is a different instruction to a caller — and to
+  // Power BI's retry behaviour — than "the upstream failed".
+  if (err instanceof SurveyMonkeyRateLimitError) {
+    log.error('SurveyMonkey rate limited', { statusCode: 429, errorName: err.name });
+
+    const headers = {};
+    if (Number.isFinite(err.retryAfterSeconds)) {
+      headers['Retry-After'] = String(err.retryAfterSeconds);
+    }
+
+    return {
+      status: 503,
+      headers,
+      jsonBody: {
+        error: 'surveymonkey_rate_limited',
+        message:
+          'SurveyMonkey is rate limiting this account and did not recover after several ' +
+          'retries. The daily request quota is the usual cause. Narrow SYNC_SURVEY_IDS or ' +
+          'reduce the sync frequency, then try again.',
+        retry_after_seconds: err.retryAfterSeconds || null,
+      },
+    };
+  }
+
   if (err instanceof SurveyMonkeyAuthError) {
     log.error('SurveyMonkey auth error', { statusCode: 401, errorName: err.name });
     return {

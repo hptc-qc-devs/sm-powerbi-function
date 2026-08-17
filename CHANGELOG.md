@@ -7,7 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **Rate-limit handling.** Requests to SurveyMonkey now retry on 429 and 5xx
+  with exponential backoff and jitter, honouring SurveyMonkey's own
+  `Retry-After`. Other 4xx responses are never retried — a bad token or
+  missing scope will not fix itself and repeating the call spends more quota.
+  A 429 that outlives its retries surfaces as `503` with `Retry-After`, which
+  tells a caller something different from "the upstream failed".
+- **Per-survey sync locking.** The Functions host already makes timer runs
+  singleton, but an on-demand `POST /api/sync` could land in the middle of one
+  and write the same blobs concurrently. A second sync now skips rather than
+  queueing, since it would fetch the same data anyway. The lock carries its
+  own expiry, so a worker that dies mid-sync stops blocking on its own.
+- **Guard against very large surveys.** `SYNC_MAX_RESPONSES` (default 200,000)
+  fails a sync with an actionable message instead of letting the host be
+  killed for running out of memory — which looks like a hang, explains
+  nothing, and repeats every schedule.
+
+### Changed
+
+- **Table publication is now atomic.** Each sync writes its tables into a new
+  version directory and publishes them by writing `current_version` into
+  `state.json` — a single, atomic blob write. Previously the six tables were
+  overwritten in place, so a crash or timeout partway through could leave
+  readers with a mix of new and stale tables: an `answers` row referencing a
+  `questions` row that had not landed. Power BI would not error on that, it
+  would quietly build a broken model. The previous version is retained
+  (`SYNC_VERSIONS_KEPT`) so an in-flight refresh can finish, and pruning
+  happens only after the pointer moves.
+- The wizard strips the master key from the address bar once it has read it,
+  so it does not persist in browser history or travel in a shared link.
+- `docs/deploy.md` documents the post-deployment RBAC propagation window,
+  whose symptom is a permission error in the first minute that then fixes
+  itself — easily mistaken for a broken deployment.
 
 ## [1.0.0] - 2026-08-17
 

@@ -66,10 +66,16 @@ const paths = {
   state: (surveyId) => `${surveyId}/state.json`,
   snapshotPrefix: (surveyId) => `${surveyId}/snapshots/`,
 
+  // Versioned table sets. Each sync writes a new version, then flips a
+  // pointer in state.json, so readers never see a half-written set.
+  version: (surveyId, version, table) => `${surveyId}/versions/${version}/${table}.csv`,
+  versionPrefix: (surveyId) => `${surveyId}/versions/`,
+
   // Setup state. The leading underscore keeps these clear of survey IDs,
   // which are numeric.
   config: () => '_setup/config.json',
   oauthState: () => '_setup/oauth-state.json',
+  lock: (name) => `_locks/${name}.json`,
 };
 
 // --- primitives ------------------------------------------------------------
@@ -189,6 +195,135 @@ async function pruneSnapshots(surveyId, retentionDays, keepMin = 1) {
   return removable;
 }
 
+// --- versions --------------------------------------------------------------
+
+/** Version identifiers for a survey, newest first. */
+async function listVersions(surveyId) {
+  const prefix = paths.versionPrefix(surveyId);
+  const names = await listNames(prefix);
+
+  const versions = new Set();
+  for (const name of names) {
+    const version = name.slice(prefix.length).split('/')[0];
+    if (version) versions.add(version);
+  }
+
+  return [...versions].sort().reverse();
+}
+
+/**
+ * Deletes all but the newest `keep` versions.
+ *
+ * More than one is kept deliberately: a Power BI refresh that started against
+ * the previous version should be able to finish reading it rather than
+ * failing halfway because a sync landed mid-request.
+ */
+async function pruneVersions(surveyId, keep = 2) {
+  const versions = await listVersions(surveyId);
+  const removable = versions.slice(Math.max(keep, 1));
+
+  for (const version of removable) {
+    const names = await listNames(`${paths.versionPrefix(surveyId)}${version}/`);
+    for (const name of names) await deleteBlob(name);
+  }
+
+  return removable;
+}
+
+// --- locking ---------------------------------------------------------------
+
+/**
+ * Best-effort mutual exclusion across Function instances.
+ *
+ * The Functions host already makes timer triggers singleton, so scheduled
+ * runs cannot overlap each other — but an on-demand POST /api/sync can land
+ * in the middle of one, and then two workers write the same blobs. This
+ * closes that gap.
+ *
+ * Implemented with conditional writes rather than blob leases: a lease has to
+ * be renewed for the length of the operation, and a worker that dies mid-sync
+ * leaves the lease held until it expires anyway. A lock blob carrying its own
+ * expiry gets the same protection with no renewal machinery, and a crashed
+ * holder simply stops blocking once the deadline passes.
+ *
+ * `ifNoneMatch: '*'` makes creation atomic — exactly one caller wins a race
+ * to create the blob. Taking over an expired lock uses `ifMatch` on the etag
+ * we just read, so two workers cannot both decide it is theirs.
+ *
+ * @returns {Promise<{acquired: boolean, token?: string, heldUntil?: string}>}
+ */
+async function acquireLock(name, ttlMs = 15 * 60 * 1000) {
+  const blobPath = paths.lock(name);
+  const blob = getContainerClient().getBlockBlobClient(blobPath);
+
+  const token = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const record = { token, acquiredAt: new Date().toISOString(), expiresAt: Date.now() + ttlMs };
+  const body = Buffer.from(JSON.stringify(record), 'utf8');
+
+  try {
+    await blob.upload(body, body.length, { conditions: { ifNoneMatch: '*' } });
+    return { acquired: true, token };
+  } catch (err) {
+    if (!isConflict(err)) throw err;
+  }
+
+  // Someone holds it, or used to. Only take over if their claim has lapsed.
+  let existing = null;
+  let etag;
+  try {
+    const properties = await blob.getProperties();
+    etag = properties.etag;
+    existing = await readJson(blobPath);
+  } catch (err) {
+    if (isNotFound(err)) return acquireLock(name, ttlMs); // released underneath us
+    throw err;
+  }
+
+  if (existing && Number(existing.expiresAt) > Date.now()) {
+    return { acquired: false, heldUntil: new Date(Number(existing.expiresAt)).toISOString() };
+  }
+
+  try {
+    await blob.upload(body, body.length, { conditions: { ifMatch: etag } });
+    return { acquired: true, token, tookOverStaleLock: true };
+  } catch (err) {
+    if (isConflict(err)) return { acquired: false };
+    throw err;
+  }
+}
+
+/**
+ * Releases a lock, but only if we still hold it — a lock that already expired
+ * and was taken over by someone else must not be deleted out from under them.
+ */
+async function releaseLock(name, token) {
+  const blobPath = paths.lock(name);
+
+  try {
+    const current = await readJson(blobPath);
+    if (!current || current.token !== token) return false;
+
+    const etag = (await getContainerClient().getBlockBlobClient(blobPath).getProperties()).etag;
+    await getContainerClient()
+      .getBlockBlobClient(blobPath)
+      .deleteIfExists({ conditions: { ifMatch: etag } });
+    return true;
+  } catch (err) {
+    if (isNotFound(err) || isConflict(err)) return false;
+    throw err;
+  }
+}
+
+function isConflict(err) {
+  return (
+    err &&
+    (err.statusCode === 409 ||
+      err.statusCode === 412 ||
+      err.code === 'BlobAlreadyExists' ||
+      err.code === 'ConditionNotMet')
+  );
+}
+
 function isNotFound(err) {
   return err && (err.statusCode === 404 || err.code === 'BlobNotFound');
 }
@@ -211,6 +346,10 @@ module.exports = {
   deleteBlob,
   listSnapshotDates,
   pruneSnapshots,
+  listVersions,
+  pruneVersions,
+  acquireLock,
+  releaseLock,
   _resetForTests,
   DEFAULT_CONTAINER,
 };

@@ -26,6 +26,12 @@
     "SYNC_SURVEY_IDS": "",
     "SYNC_RESPONSE_STATUS": "completed",
 
+    "_comment_resilience": "SM_MAX_RETRIES controls how often a 429 or 5xx from SurveyMonkey is retried (its own Retry-After is honoured when present). SYNC_LOCK_TTL_MS is how long a sync may hold its per-survey lock before another run assumes it died - keep it above the host's functionTimeout. SYNC_VERSIONS_KEPT is how many published table versions to retain; more than one lets a Power BI refresh already in flight finish reading the previous one. SYNC_MAX_RESPONSES fails a sync loudly rather than running the host out of memory.",
+    "SM_MAX_RETRIES": "4",
+    "SYNC_LOCK_TTL_MS": "1200000",
+    "SYNC_VERSIONS_KEPT": "2",
+    "SYNC_MAX_RESPONSES": "200000",
+
     "_comment_history": "Turn SYNC_HISTORY_ENABLED on to freeze a dated snapshot on every sync, which is what makes quarter-over-quarter and year-over-year analysis possible. Snapshots older than the retention window are pruned automatically.",
     "SYNC_HISTORY_ENABLED": "false",
     "SYNC_SNAPSHOT_RETENTION_DAYS": "90",

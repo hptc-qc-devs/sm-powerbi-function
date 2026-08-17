@@ -240,6 +240,24 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
           name: 'SYNC_SNAPSHOT_RETENTION_DAYS'
           value: string(snapshotRetentionDays)
         }
+        {
+          // Longer than the host's functionTimeout, so a slow but living sync
+          // is never elbowed aside by the next scheduled run.
+          name: 'SYNC_LOCK_TTL_MS'
+          value: '1200000'
+        }
+        {
+          // Keeping the previous published version lets a Power BI refresh
+          // already in flight finish reading it.
+          name: 'SYNC_VERSIONS_KEPT'
+          value: '2'
+        }
+        {
+          // Consumption plans cap around 1.5 GB and the whole survey is held
+          // in memory; failing with a clear message beats being killed.
+          name: 'SYNC_MAX_RESPONSES'
+          value: '200000'
+        }
       ], empty(packageUri) ? [] : [
         {
           name: 'WEBSITE_RUN_FROM_PACKAGE'

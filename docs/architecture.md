@@ -147,11 +147,47 @@ only recent responses and quietly write a dataset missing everything older.
 ### What gets stored
 
 ```
-{surveyId}/latest/{table}.csv       what the data endpoints serve
-{surveyId}/raw/responses.json       merged raw responses (the incremental base)
-{surveyId}/snapshots/{date}/...     frozen copies, when history is enabled
-{surveyId}/state.json               watermark, row counts, last sync result
+{surveyId}/versions/{version}/{table}.csv   published table sets
+{surveyId}/raw/responses.json               merged raw responses (incremental base)
+{surveyId}/snapshots/{date}/...             frozen copies, when history is enabled
+{surveyId}/state.json                       watermark, row counts, current_version
+_locks/sync-{surveyId}.json                 held while a sync runs
 ```
+
+### Publication is atomic
+
+Six tables cannot be written in one operation, so overwriting them in place
+means a crash or timeout partway through leaves readers with a mix: an
+`answers` row referencing a `questions` row that has not landed yet. Power BI
+would not error on that — it would quietly build a broken model.
+
+So each sync writes its tables into a **new version directory**, and only then
+writes `current_version` into `state.json`. That pointer write is a single
+blob operation, and therefore atomic: before it, readers see the previous
+version; after it, the new one. There is no visible in-between. `getData`
+resolves the pointer on every request rather than reading a fixed path.
+
+The previous version is kept (`SYNC_VERSIONS_KEPT`, default 2) so a refresh
+that started against it can finish, and pruning happens only *after* the
+pointer moves — a failure before that point leaves the old version intact and
+still being served.
+
+### Only one sync per survey at a time
+
+The Functions host already makes timer triggers singleton, so scheduled runs
+cannot overlap each other. An on-demand `POST /api/sync` can still land in the
+middle of one, though, and then two workers write the same blobs.
+
+A lock blob closes that gap, using conditional writes (`ifNoneMatch` on create,
+`ifMatch` on takeover) so the storage layer decides the winner rather than our
+sequencing. The second caller **skips** rather than queueing — it would fetch
+the same data and write the same files, so waiting only burns API quota.
+
+The lock carries its own expiry rather than using a blob lease, because a
+lease needs renewing for the length of the operation and a worker that dies
+mid-sync leaves it held regardless. An expiring record gets the same
+protection with no renewal machinery: a crashed holder simply stops blocking
+once its deadline passes.
 
 Respondent identifiers — IP address, email, name — are stripped before
 anything is written. The tables never expose them, so retaining them in the
@@ -294,6 +330,16 @@ rather than a query string where the tooling allows it. Note this is a key for
 *this service*, not a SurveyMonkey credential — the SurveyMonkey token never
 leaves Key Vault and the Function's memory.
 
+### Rate limiting is expected, not exceptional
+
+A large survey is many paginated calls, so brushing SurveyMonkey's per-minute
+quota partway through a sync is ordinary. Requests retry on 429 and 5xx with
+exponential backoff and jitter, honouring SurveyMonkey's own `Retry-After`
+when it sends one. Other 4xx responses are never retried — a bad token or a
+missing scope will not fix itself, and repeating the call only spends more
+quota. When a 429 outlives its retries it surfaces as `503` with
+`Retry-After`, distinguishing "come back later" from "the upstream failed".
+
 ## Known limitations
 
 - **The first sync of a very large survey can outrun the Function timeout.**
@@ -306,6 +352,9 @@ leaves Key Vault and the Function's memory.
 - **One survey per request.** Cross-survey dashboards need one query per
   survey, unioned in Power Query. A multi-survey endpoint is on the roadmap.
 - **No automated token refresh**, because SurveyMonkey doesn't offer it.
+- **Memory scales with response count.** The whole survey is materialised in
+  memory, so `SYNC_MAX_RESPONSES` (default 200,000) fails the sync with a
+  clear message rather than letting the host be killed mid-write.
 - **Direct mode keeps its original constraints** — rate limits, timeouts, no
   history — by definition, since nothing is stored. It exists for small
   surveys and quick validation.

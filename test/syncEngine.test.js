@@ -31,6 +31,21 @@ blobStore.pruneSnapshots = async (surveyId, days) => {
   return [];
 };
 
+let pruneVersionCalls = [];
+blobStore.pruneVersions = async (surveyId, keep) => {
+  pruneVersionCalls.push({ surveyId, keep });
+  return [];
+};
+
+// Lock behaviour is overridden per test to simulate contention.
+let nextLockResult = null;
+let releasedTokens = [];
+blobStore.acquireLock = async () => nextLockResult || { acquired: true, token: 'test-token' };
+blobStore.releaseLock = async (name, token) => {
+  releasedTokens.push(token);
+  return true;
+};
+
 // --- fake SurveyMonkey -----------------------------------------------------
 
 let bulkCalls = [];
@@ -58,10 +73,23 @@ const {
 
 const SURVEY_ID = '888222';
 
+/**
+ * Resolves the table path the endpoints would serve, by reading the version
+ * pointer the way getData does — so these assertions break if the pointer and
+ * the written files ever disagree.
+ */
+function currentPath(surveyId, table) {
+  const state = JSON.parse(store.get(blobStore.paths.state(surveyId)));
+  return blobStore.paths.version(surveyId, state.current_version, table);
+}
+
 function reset() {
   store.clear();
   bulkCalls = [];
   pruneCalls = [];
+  pruneVersionCalls = [];
+  releasedTokens = [];
+  nextLockResult = null;
   nextResponses = allResponses;
   detailsImpl = async () => surveyDetails;
   delete process.env.SYNC_HISTORY_ENABLED;
@@ -132,7 +160,7 @@ test('first sync is full, writes every table, and records a watermark', async ()
   assert.equal(bulkCalls[0].modifiedSince, undefined, 'a first sync must not filter by date');
 
   for (const table of ['surveys', 'questions', 'choices', 'responses', 'answers', 'flat']) {
-    const csv = store.get(`${SURVEY_ID}/latest/${table}.csv`);
+    const csv = store.get(currentPath(SURVEY_ID, table));
     assert.ok(csv, `${table}.csv should have been written`);
     assert.ok(csv.split('\r\n').length > 1, `${table}.csv should have rows`);
   }
@@ -205,7 +233,7 @@ test('an edited response updates in place instead of duplicating', async () => {
   assert.equal(second.response_count, 4, 'the edit must replace, not append');
   assert.equal(second.watermark, '2025-04-01T09:00:00.000Z', 'watermark should advance');
 
-  const answers = store.get(`${SURVEY_ID}/latest/answers.csv`);
+  const answers = store.get(currentPath(SURVEY_ID, 'answers'));
   assert.ok(answers.includes('From a friend'), 'rebuilt tables should reflect the edit');
 });
 
@@ -260,7 +288,7 @@ test('enabling history freezes a dated copy and prunes by retention', async () =
   // The snapshot is a frozen copy of what latest holds at that moment.
   assert.equal(
     store.get(`${SURVEY_ID}/snapshots/2025-06-30/answers.csv`),
-    store.get(`${SURVEY_ID}/latest/answers.csv`)
+    store.get(currentPath(SURVEY_ID, 'answers'))
   );
 });
 
@@ -273,6 +301,139 @@ test('history can be enabled through app settings rather than per call', async (
 });
 
 // --- multi-survey ----------------------------------------------------------
+
+// --- concurrency -----------------------------------------------------------
+
+test('a sync skips when another is already running for that survey', async () => {
+  reset();
+  nextLockResult = { acquired: false, heldUntil: '2026-01-01T00:00:00.000Z' };
+
+  const result = await syncSurvey(SURVEY_ID, { snapshotDate: '2025-06-30' });
+
+  assert.equal(result.skipped, true);
+  assert.equal(result.reason, 'already_running');
+  assert.equal(bulkCalls.length, 0, 'a skipped sync must not call SurveyMonkey');
+  assert.equal(store.size, 0, 'a skipped sync must not write anything');
+});
+
+test('the lock is released after a successful sync', async () => {
+  reset();
+  await syncSurvey(SURVEY_ID, { snapshotDate: '2025-06-30' });
+  assert.deepEqual(releasedTokens, ['test-token']);
+});
+
+test('the lock is released even when the sync throws', async () => {
+  reset();
+  detailsImpl = async () => {
+    throw new Error('SurveyMonkey exploded');
+  };
+
+  // Without release-on-failure a single error would block every later run
+  // until the lock aged out.
+  await assert.rejects(() => syncSurvey(SURVEY_ID, {}), /exploded/);
+  assert.deepEqual(releasedTokens, ['test-token']);
+});
+
+// --- atomic publication ----------------------------------------------------
+
+test('each sync publishes a new version and moves the pointer', async () => {
+  reset();
+  const first = await syncSurvey(SURVEY_ID, { snapshotDate: '2025-06-30' });
+
+  nextResponses = [];
+  const second = await syncSurvey(SURVEY_ID, { snapshotDate: '2025-07-01' });
+
+  assert.ok(first.current_version, 'a sync should record the version it wrote');
+  assert.notEqual(second.current_version, first.current_version, 'each sync gets its own');
+
+  // The previous version stays readable, so a refresh already in flight
+  // against it can finish.
+  assert.ok(store.has(blobStore.paths.version(SURVEY_ID, first.current_version, 'answers')));
+  assert.ok(store.has(blobStore.paths.version(SURVEY_ID, second.current_version, 'answers')));
+});
+
+test('tables are written before the pointer moves', async () => {
+  reset();
+
+  // Capture the order of writes: every table for the new version must land
+  // before state.json publishes it, or a reader could follow the pointer to
+  // files that are not there yet.
+  const order = [];
+  const realWriteText = blobStore.writeText;
+  const realWriteJson = blobStore.writeJson;
+  blobStore.writeText = async (p, c) => {
+    order.push(p);
+    return realWriteText(p, c);
+  };
+  blobStore.writeJson = async (p, v) => {
+    order.push(p);
+    return realWriteJson(p, v);
+  };
+
+  const state = await syncSurvey(SURVEY_ID, { snapshotDate: '2025-06-30' });
+
+  blobStore.writeText = realWriteText;
+  blobStore.writeJson = realWriteJson;
+
+  const pointerAt = order.indexOf(blobStore.paths.state(SURVEY_ID));
+  const lastTableAt = order.reduce(
+    (last, p, i) => (p.includes(`/versions/${state.current_version}/`) ? i : last),
+    -1
+  );
+
+  assert.ok(pointerAt > -1 && lastTableAt > -1);
+  assert.ok(lastTableAt < pointerAt, 'the pointer must move only after every table is written');
+});
+
+test('a crash before the pointer moves leaves the old version being served', async () => {
+  reset();
+  const first = await syncSurvey(SURVEY_ID, { snapshotDate: '2025-06-30' });
+
+  // Fail on the state write, which is the commit point.
+  const realWriteJson = blobStore.writeJson;
+  blobStore.writeJson = async (p, v) => {
+    if (p === blobStore.paths.state(SURVEY_ID)) throw new Error('host killed mid-write');
+    return realWriteJson(p, v);
+  };
+
+  nextResponses = [allResponses[0]];
+  await assert.rejects(() => syncSurvey(SURVEY_ID, { full: true, snapshotDate: '2025-07-01' }));
+
+  blobStore.writeJson = realWriteJson;
+
+  const pointer = JSON.parse(store.get(blobStore.paths.state(SURVEY_ID))).current_version;
+  assert.equal(pointer, first.current_version, 'readers still see the last complete version');
+});
+
+test('old versions are pruned only after the pointer has moved', async () => {
+  reset();
+  await syncSurvey(SURVEY_ID, { snapshotDate: '2025-06-30' });
+  assert.equal(pruneVersionCalls.length, 1);
+  assert.equal(pruneVersionCalls[0].surveyId, SURVEY_ID);
+});
+
+// --- large surveys ---------------------------------------------------------
+
+test('a survey beyond the memory budget fails with an actionable message', async () => {
+  reset();
+  process.env.SYNC_MAX_RESPONSES = '2';
+
+  // Reloading is not possible mid-process, so assert on the exported guard
+  // directly — the constant is read at module load.
+  const { assertWithinMemoryBudget, MAX_RESPONSES } = require('../src/lib/syncEngine');
+
+  assert.doesNotThrow(() => assertWithinMemoryBudget(MAX_RESPONSES, SURVEY_ID));
+  assert.throws(
+    () => assertWithinMemoryBudget(MAX_RESPONSES + 1, SURVEY_ID),
+    (err) => {
+      assert.equal(err.name, 'SurveyTooLargeError');
+      assert.match(err.message, /SYNC_MAX_RESPONSES/);
+      return true;
+    }
+  );
+
+  delete process.env.SYNC_MAX_RESPONSES;
+});
 
 test('syncAll isolates a failing survey so the rest still sync', async () => {
   reset();

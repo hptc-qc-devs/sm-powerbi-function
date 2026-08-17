@@ -161,10 +161,40 @@ name inside that window either needs the vault purged
 
 ## Troubleshooting
 
+**Permission errors in the first minute or two after deploying.** Azure role
+assignments take a short while to propagate. The template grants the Function
+App's identity access to storage and Key Vault as part of the deployment, but
+the identity may not be able to *use* that access immediately — so a wizard
+opened the instant deployment finishes can report storage as unreachable, or
+fail to save a token, and then work perfectly on a retry a minute later.
+
+If the very first thing you do after deploying fails on permissions, wait a
+minute and reload before investigating. It is only worth digging into if it
+persists past a few minutes, which points at the role assignments genuinely
+not being there — check under Storage account → Access control (IAM) and Key
+Vault → Access control (IAM).
+
 **The app won't start / no functions appear.** Almost always a missing
 `SYNC_SCHEDULE` — the timer trigger resolves it by name at startup and the host
 fails to bind without it. The template always sets it; a hand-built deployment
 may not have.
+
+**A sync reports `already_running` and skips.** Expected, not a fault: only one
+sync per survey runs at a time, so an on-demand sync landing on top of a
+scheduled one steps aside rather than writing the same blobs twice. Wait for
+the running one to finish. A lock left behind by a crashed run expires on its
+own after 20 minutes (`SYNC_LOCK_TTL_MS`).
+
+**`surveymonkey_rate_limited` (HTTP 503).** SurveyMonkey's quota is exhausted.
+Requests are retried with backoff and honour SurveyMonkey's own `Retry-After`,
+so this means the limit outlasted several retries — usually the daily quota
+rather than a momentary burst. Narrow `SYNC_SURVEY_IDS`, lengthen
+`SYNC_SCHEDULE`, or wait for the quota to reset.
+
+**`SurveyTooLargeError`.** The survey has more responses than the connector
+will hold in memory at once (`SYNC_MAX_RESPONSES`, default 200,000). Consumption
+plans cap around 1.5 GB, and being killed mid-sync is a worse failure than
+being told why. Raise the limit if the plan has the memory, or narrow the sync.
 
 **Syncs fail on write.** The Function App identity is missing **Storage Blob
 Data Contributor** on the storage account. The template assigns it; check

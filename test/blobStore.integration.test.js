@@ -67,6 +67,15 @@ const serveStatus = (params) =>
 
 const SURVEY_ID = '888222';
 
+/**
+ * Resolves the table the endpoints would serve, via the version pointer in
+ * state.json — the same indirection getData performs.
+ */
+async function currentPath(surveyId, table) {
+  const state = await blobStore.readJson(blobStore.paths.state(surveyId));
+  return blobStore.paths.version(surveyId, state.current_version, table);
+}
+
 // --- storage primitives ----------------------------------------------------
 
 test('container is created on demand and writes round-trip', { skip }, async () => {
@@ -185,12 +194,12 @@ test('a full sync writes every table to real storage', { skip }, async () => {
   assert.equal(state.response_count, 4);
 
   for (const table of ['surveys', 'questions', 'choices', 'responses', 'answers', 'flat']) {
-    const csv = await blobStore.readText(blobStore.paths.latest(SURVEY_ID, table));
+    const csv = await blobStore.readText(await currentPath(SURVEY_ID, table));
     assert.ok(csv, `${table}.csv should exist in storage`);
     assert.ok(csv.startsWith('﻿'), `${table}.csv should carry a UTF-8 BOM`);
   }
 
-  const answers = await blobStore.readText(blobStore.paths.latest(SURVEY_ID, 'answers'));
+  const answers = await blobStore.readText(await currentPath(SURVEY_ID, 'answers'));
   assert.ok(answers.includes('Conference booth'), 'other-specify text should be present');
 });
 
@@ -206,7 +215,7 @@ test('state.json is persisted and drives the next incremental sync', { skip }, a
 });
 
 test('CSV written to storage parses back with quoting intact', { skip }, async () => {
-  const csv = await blobStore.readText(blobStore.paths.latest(SURVEY_ID, 'answers'));
+  const csv = await blobStore.readText(await currentPath(SURVEY_ID, 'answers'));
   const body = csv.replace(/^﻿/, '');
 
   // The fixture contains an answer with quotes, a comma and a newline in it;
@@ -224,10 +233,107 @@ test('snapshots are written to real storage when history is enabled', { skip }, 
   await syncSurvey(id, { snapshotDate: '2025-06-30', historyEnabled: true, full: true });
 
   const snapshot = await blobStore.readText(blobStore.paths.snapshot(id, '2025-06-30', 'answers'));
-  const latest = await blobStore.readText(blobStore.paths.latest(id, 'answers'));
+  const latest = await blobStore.readText(await currentPath(id, 'answers'));
 
   assert.ok(snapshot);
-  assert.equal(snapshot, latest, 'a snapshot is a frozen copy of latest');
+  assert.equal(snapshot, latest, 'a snapshot is a frozen copy of the published version');
+});
+
+// --- locking ---------------------------------------------------------------
+//
+// The lock relies on conditional writes (ifNoneMatch / ifMatch) for its
+// atomicity, which the in-memory fakes in the unit tests do not implement at
+// all — so this is the only place its actual guarantee is exercised.
+
+test('a lock can be acquired, blocks a second caller, and releases', { skip }, async () => {
+  const name = `lock-basic-${Date.now()}`;
+
+  const first = await blobStore.acquireLock(name, 60_000);
+  assert.equal(first.acquired, true);
+  assert.ok(first.token);
+
+  const second = await blobStore.acquireLock(name, 60_000);
+  assert.equal(second.acquired, false, 'a held lock must not be handed out twice');
+  assert.ok(second.heldUntil);
+
+  assert.equal(await blobStore.releaseLock(name, first.token), true);
+
+  const third = await blobStore.acquireLock(name, 60_000);
+  assert.equal(third.acquired, true, 'a released lock is available again');
+  await blobStore.releaseLock(name, third.token);
+});
+
+test('only one of many simultaneous callers wins the lock', { skip }, async () => {
+  const name = `lock-race-${Date.now()}`;
+
+  // The real test of ifNoneMatch: fire them together and confirm the storage
+  // layer, not our sequencing, is what serializes them.
+  const results = await Promise.all(
+    Array.from({ length: 8 }, () => blobStore.acquireLock(name, 60_000))
+  );
+
+  const winners = results.filter((r) => r.acquired);
+  assert.equal(winners.length, 1, `expected exactly one winner, got ${winners.length}`);
+
+  await blobStore.releaseLock(name, winners[0].token);
+});
+
+test('an expired lock is taken over rather than blocking forever', { skip }, async () => {
+  const name = `lock-expiry-${Date.now()}`;
+
+  // A worker killed mid-sync never releases; the lock must age out or the
+  // survey would stop syncing permanently.
+  const dead = await blobStore.acquireLock(name, -1000);
+  assert.equal(dead.acquired, true);
+
+  const takeover = await blobStore.acquireLock(name, 60_000);
+  assert.equal(takeover.acquired, true);
+  assert.equal(takeover.tookOverStaleLock, true);
+
+  await blobStore.releaseLock(name, takeover.token);
+});
+
+test('releasing with the wrong token does not free someone else lock', { skip }, async () => {
+  const name = `lock-token-${Date.now()}`;
+
+  const held = await blobStore.acquireLock(name, 60_000);
+  assert.equal(await blobStore.releaseLock(name, 'not-my-token'), false);
+
+  const blocked = await blobStore.acquireLock(name, 60_000);
+  assert.equal(blocked.acquired, false, 'the original holder must still hold it');
+
+  await blobStore.releaseLock(name, held.token);
+});
+
+// --- versioning ------------------------------------------------------------
+
+test('versions are listed newest first and pruned to the keep count', { skip }, async () => {
+  const id = `version-survey-${Date.now()}`;
+
+  for (const version of ['20260101T000000Z-aaa', '20260301T000000Z-ccc', '20260201T000000Z-bbb']) {
+    await blobStore.writeText(blobStore.paths.version(id, version, 'answers'), 'x');
+  }
+
+  assert.deepEqual(await blobStore.listVersions(id), [
+    '20260301T000000Z-ccc',
+    '20260201T000000Z-bbb',
+    '20260101T000000Z-aaa',
+  ]);
+
+  const pruned = await blobStore.pruneVersions(id, 2);
+  assert.deepEqual(pruned, ['20260101T000000Z-aaa']);
+  assert.deepEqual(await blobStore.listVersions(id), [
+    '20260301T000000Z-ccc',
+    '20260201T000000Z-bbb',
+  ]);
+});
+
+test('pruning always keeps at least one version', { skip }, async () => {
+  const id = `version-keepone-${Date.now()}`;
+  await blobStore.writeText(blobStore.paths.version(id, 'only', 'answers'), 'x');
+
+  await blobStore.pruneVersions(id, 0);
+  assert.deepEqual(await blobStore.listVersions(id), ['only'], 'never prune the served version');
 });
 
 // --- sync, then serve ------------------------------------------------------
@@ -237,7 +343,7 @@ test('a synced table is served straight back out as CSV', { skip }, async () => 
 
   assert.equal(res.status, 200);
   assert.match(res.headers['Content-Type'], /text\/csv/);
-  assert.equal(res.body, await blobStore.readText(blobStore.paths.latest(SURVEY_ID, 'answers')));
+  assert.equal(res.body, await blobStore.readText(await currentPath(SURVEY_ID, 'answers')));
 });
 
 test('serving as JSON returns typed values from real storage', { skip }, async () => {

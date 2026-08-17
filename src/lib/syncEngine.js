@@ -24,6 +24,47 @@ const blobStore = require('./blobStore');
 const setupConfig = require('./setupConfig');
 
 /**
+ * How long a sync may hold its lock before another run is entitled to assume
+ * it died. Comfortably longer than the 10-minute Function timeout, so a slow
+ * but living sync is never elbowed aside by the next scheduled run.
+ */
+const LOCK_TTL_MS = Number(process.env.SYNC_LOCK_TTL_MS) || 20 * 60 * 1000;
+
+/** Older table versions retained after a sync. */
+const VERSIONS_KEPT = Number(process.env.SYNC_VERSIONS_KEPT) || 2;
+
+/**
+ * Ceiling on responses held in memory at once.
+ *
+ * The whole survey is materialised — raw responses, then the derived tables —
+ * so memory scales with response count, and a Consumption plan caps around
+ * 1.5 GB. Past some size the host is killed mid-write, which is a far worse
+ * failure than a clear message: it looks like a hang, leaves no explanation,
+ * and repeats every schedule. Set SYNC_MAX_RESPONSES higher on a plan with
+ * more memory.
+ */
+const MAX_RESPONSES = Number(process.env.SYNC_MAX_RESPONSES) || 200_000;
+
+function assertWithinMemoryBudget(responseCount, surveyId) {
+  if (responseCount <= MAX_RESPONSES) return;
+
+  const err = new Error(
+    `Survey ${surveyId} has ${responseCount} responses, above the ${MAX_RESPONSES} that this ` +
+      'connector holds in memory at once. Raise SYNC_MAX_RESPONSES if the Function App has ' +
+      'the memory for it, or narrow the sync with modifiedSince or SYNC_SURVEY_IDS.'
+  );
+  err.name = 'SurveyTooLargeError';
+  throw err;
+}
+
+/** Sortable, collision-free version identifier. */
+function newVersionId() {
+  return `${new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15)}Z-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+}
+
+/**
  * Effective sync configuration: whatever the setup wizard saved, layered over
  * application settings. See setupConfig.js for why it works that way.
  */
@@ -44,6 +85,37 @@ async function getSyncConfig() {
  * @returns {Promise<object>} summary of what happened
  */
 async function syncSurvey(surveyId, opts = {}) {
+  await blobStore.ensureContainer();
+
+  // One sync per survey at a time. A second one skips rather than queueing:
+  // it would fetch the same data and write the same blobs, so waiting for the
+  // first to finish only burns quota and risks the HTTP request timing out.
+  const lock = await blobStore.acquireLock(`sync-${surveyId}`, LOCK_TTL_MS);
+
+  if (!lock.acquired) {
+    (opts.log || noopLogger()).warn('Sync already running for this survey; skipping', {
+      surveyId,
+    });
+    return {
+      survey_id: surveyId,
+      skipped: true,
+      reason: 'already_running',
+      held_until: lock.heldUntil || null,
+    };
+  }
+
+  try {
+    return await runSync(surveyId, opts);
+  } finally {
+    await blobStore.releaseLock(`sync-${surveyId}`, lock.token).catch(() => {
+      // A lock we cannot release will expire on its own; failing the sync
+      // over cleanup would turn a successful run into a reported failure.
+    });
+  }
+}
+
+/** The sync itself, with the lock already held. */
+async function runSync(surveyId, opts = {}) {
   const config = await getSyncConfig();
   const log = opts.log || noopLogger();
   const startedAt = Date.now();
@@ -51,8 +123,6 @@ async function syncSurvey(surveyId, opts = {}) {
   const historyEnabled = opts.historyEnabled !== undefined ? opts.historyEnabled : config.historyEnabled;
   const retentionDays = opts.retentionDays !== undefined ? opts.retentionDays : config.retentionDays;
   const snapshotDate = opts.snapshotDate || new Date().toISOString().slice(0, 10);
-
-  await blobStore.ensureContainer();
 
   const previousState = (await blobStore.readJson(blobStore.paths.state(surveyId))) || {};
   const storedResponses = (await blobStore.readJson(blobStore.paths.raw(surveyId))) || [];
@@ -75,6 +145,8 @@ async function syncSurvey(surveyId, opts = {}) {
 
   const merged = mergeResponses(isFull ? [] : storedResponses, fetched.map(stripResponsePii));
 
+  assertWithinMemoryBudget(merged.length, surveyId);
+
   const tables = buildTables(details, merged, { snapshotDate });
   const flat = buildFlatTable(tables);
   const allTables = { ...tables, flat };
@@ -83,9 +155,17 @@ async function syncSurvey(surveyId, opts = {}) {
   // a consistent base to merge into rather than re-pulling from scratch.
   await blobStore.writeJson(blobStore.paths.raw(surveyId), merged);
 
+  // Tables go into a fresh version directory rather than overwriting the one
+  // being served. Six sequential writes are not atomic, so overwriting in
+  // place means a crash or timeout partway through leaves readers with a mix
+  // of new and stale tables — an `answers` row pointing at a `questions` row
+  // that is not there yet. Writing aside and then flipping a single pointer
+  // makes the switch all-or-nothing.
+  const version = opts.version || newVersionId();
+
   for (const table of TABLE_NAMES) {
     const csv = toCsv(allTables[table], TABLE_COLUMNS[table]);
-    await blobStore.writeText(blobStore.paths.latest(surveyId, table), csv);
+    await blobStore.writeText(blobStore.paths.version(surveyId, version, table), csv);
     if (historyEnabled) {
       await blobStore.writeText(blobStore.paths.snapshot(surveyId, snapshotDate, table), csv);
     }
@@ -99,6 +179,7 @@ async function syncSurvey(surveyId, opts = {}) {
   const state = {
     survey_id: surveyId,
     watermark,
+    current_version: version,
     last_sync_at: new Date().toISOString(),
     last_sync_mode: isFull ? 'full' : 'incremental',
     last_sync_duration_ms: durationMs,
@@ -110,7 +191,13 @@ async function syncSurvey(surveyId, opts = {}) {
     snapshots_pruned: pruned,
   };
 
+  // The commit point. Until this single write lands, readers keep seeing the
+  // previous version; after it, they see the new one. There is no in-between.
   await blobStore.writeJson(blobStore.paths.state(surveyId), state);
+
+  // Only prune once the pointer has moved, so a failure above leaves the
+  // previous version intact and still being served.
+  state.versions_pruned = await blobStore.pruneVersions(surveyId, VERSIONS_KEPT);
 
   log.info('Sync complete', {
     surveyId,
@@ -200,4 +287,9 @@ module.exports = {
   mergeResponses,
   stripResponsePii,
   maxDateModified,
+  newVersionId,
+  assertWithinMemoryBudget,
+  LOCK_TTL_MS,
+  VERSIONS_KEPT,
+  MAX_RESPONSES,
 };

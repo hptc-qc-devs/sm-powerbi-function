@@ -42,6 +42,110 @@ class SurveyMonkeyScopeError extends Error {
   }
 }
 
+class SurveyMonkeyRateLimitError extends Error {
+  constructor(message, retryAfterSeconds) {
+    super(message);
+    this.name = 'SurveyMonkeyRateLimitError';
+    this.statusCode = 429;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+// --- retry -----------------------------------------------------------------
+
+/**
+ * SurveyMonkey enforces per-minute and per-day request quotas and answers 429
+ * when either is exceeded. A sync of a large survey is many paginated calls,
+ * so brushing the per-minute limit partway through is an ordinary event, not
+ * an exceptional one — without a retry, a single 429 abandons the whole sync
+ * and leaves the data half-fetched.
+ *
+ * Retries cover 429 and 5xx only. A 4xx other than 429 means the request
+ * itself is wrong (bad token, missing scope, unknown survey) and repeating it
+ * would only burn more quota.
+ */
+const MAX_RETRIES = Number(process.env.SM_MAX_RETRIES) || 4;
+const MAX_RETRY_DELAY_MS = Number(process.env.SM_MAX_RETRY_DELAY_MS) || 60_000;
+const BASE_RETRY_DELAY_MS = Number(process.env.SM_BASE_RETRY_DELAY_MS) || 1_000;
+
+// Test seam: swapped out so retry behaviour can be asserted without waiting.
+let sleepImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * How long to wait before the next attempt.
+ *
+ * SurveyMonkey's own Retry-After is authoritative when present, in either
+ * accepted form (delay-seconds or an HTTP date). Otherwise exponential
+ * backoff, with jitter so several surveys syncing in the same run do not all
+ * retry on the same tick and re-collide.
+ */
+function retryDelayMs(response, attempt, now = Date.now()) {
+  const header = response && response.headers && response.headers.get('retry-after');
+
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(seconds * 1000, MAX_RETRY_DELAY_MS);
+    }
+
+    const asDate = Date.parse(header);
+    if (!Number.isNaN(asDate)) {
+      return Math.min(Math.max(asDate - now, 0), MAX_RETRY_DELAY_MS);
+    }
+  }
+
+  const backoff = BASE_RETRY_DELAY_MS * 2 ** attempt;
+  const jitter = Math.random() * BASE_RETRY_DELAY_MS * 0.25;
+  return Math.min(backoff + jitter, MAX_RETRY_DELAY_MS);
+}
+
+function isRetryable(status) {
+  return status === 429 || (status >= 500 && status < 600);
+}
+
+/**
+ * fetch with retry on transient failures. Returns the final response; the
+ * caller still interprets the status, so a 429 that outlives its retries
+ * surfaces as a typed error rather than being swallowed here.
+ */
+async function fetchWithRetry(url, options = {}) {
+  let attempt = 0;
+
+  for (;;) {
+    let response;
+    try {
+      response = await fetch(url, options);
+    } catch (err) {
+      // A transport failure (DNS, reset connection) is worth retrying on the
+      // same schedule; the request never reached SurveyMonkey.
+      if (attempt >= MAX_RETRIES) throw err;
+      await sleepImpl(retryDelayMs(null, attempt));
+      attempt += 1;
+      continue;
+    }
+
+    if (!isRetryable(response.status) || attempt >= MAX_RETRIES) return response;
+
+    await sleepImpl(retryDelayMs(response, attempt));
+    attempt += 1;
+  }
+}
+
+/** Raises the typed error for a response that is still 429 after retrying. */
+function throwIfRateLimited(response, path) {
+  if (response.status !== 429) return;
+
+  const header = response.headers.get('retry-after');
+  const seconds = Number(header);
+
+  throw new SurveyMonkeyRateLimitError(
+    `SurveyMonkey rate limit reached on ${path} and still limited after ${MAX_RETRIES} ` +
+      'retries. This usually means the daily request quota is exhausted rather than a ' +
+      'momentary burst. Narrow SYNC_SURVEY_IDS or reduce the sync frequency.',
+    Number.isFinite(seconds) ? seconds : undefined
+  );
+}
+
 async function getAccessToken() {
   return getSecret(SM_ACCESS_TOKEN_SECRET_NAME);
 }
@@ -62,7 +166,7 @@ async function smGet(path, { params } = {}) {
     }
   }
 
-  const response = await fetch(url.toString(), {
+  const response = await fetchWithRetry(url.toString(), {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -87,6 +191,8 @@ async function smGet(path, { params } = {}) {
       403
     );
   }
+
+  throwIfRateLimited(response, path);
 
   if (!response.ok) {
     const bodyText = await response.text().catch(() => '');
@@ -125,7 +231,7 @@ async function getAllPages(path, { params, maxPages = 200 } = {}) {
 
 async function smGetAbsolute(absoluteUrl) {
   const token = await getAccessToken();
-  const response = await fetch(absoluteUrl, {
+  const response = await fetchWithRetry(absoluteUrl, {
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
   });
 
@@ -135,6 +241,11 @@ async function smGetAbsolute(absoluteUrl) {
   if (response.status === 403) {
     throw new SurveyMonkeyScopeError('SurveyMonkey rejected pagination request due to scope (403).', 403);
   }
+
+  // Rate limiting is likeliest deep into pagination, which is exactly where
+  // losing the run costs the most.
+  throwIfRateLimited(response, absoluteUrl);
+
   if (!response.ok) {
     throw new Error(`SurveyMonkey API error ${response.status} during pagination of ${absoluteUrl}`);
   }
@@ -289,6 +400,11 @@ function buildAuthorizeUrl({ clientId, redirectUri, state }) {
   return url.toString();
 }
 
+/** Test seam: replaces the retry sleep so tests do not wait in real time. */
+function _setSleepForTests(fn) {
+  sleepImpl = fn || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+}
+
 module.exports = {
   listSurveys,
   getSurveyDetails,
@@ -299,4 +415,10 @@ module.exports = {
   buildAuthorizeUrl,
   SurveyMonkeyAuthError,
   SurveyMonkeyScopeError,
+  SurveyMonkeyRateLimitError,
+  retryDelayMs,
+  isRetryable,
+  fetchWithRetry,
+  MAX_RETRIES,
+  _setSleepForTests,
 };
