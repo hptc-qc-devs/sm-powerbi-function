@@ -169,7 +169,7 @@ All `authLevel: 'admin'` (master key — only the deployer configures):
   3) Pick surveys + sync schedule + history toggle, run first sync with live
   progress → 4) Connect Power BI (copy URLs, copy M snippet, walkthrough).
 
-### M6 — One-click deploy (infrastructure as code)
+### M6 — One-click deploy (infrastructure as code) ✅ done
 - `infra/main.bicep`: Function App (Consumption, Node 20, system-assigned
   identity), Storage account (+ `data` container; identity granted Blob Data
   Contributor), Key Vault (identity granted secrets get/list/set), App

@@ -9,3 +9,6 @@ scripts/
 README.md
 node_modules/.bin
 .github
+infra/
+azuredeploy.json
+public/**/*.map

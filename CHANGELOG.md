@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **One-click deployment.** A Deploy to Azure button and
+  [`infra/main.bicep`](infra/main.bicep) provision the Function App, storage
+  account with its data container, Key Vault, Application Insights, and —
+  the part that is easy to miss by hand — the two role assignments that let
+  the app's managed identity actually write blobs and store secrets. Only a
+  base name is required; everything else defaults.
+  - `azuredeploy.json` is the compiled template the button deploys. CI
+    recompiles the Bicep and fails if the committed file has drifted, since a
+    stale template means the button silently installs old infrastructure.
+  - [`docs/deploy.md`](docs/deploy.md) covers the button, the CLI route,
+    deploying your own code, upgrading, teardown, and the failures that follow
+    from a missing role assignment or app setting.
+
 - **A setup wizard** at `GET /api/ui`, covering the whole journey in the
   browser: prerequisites, connecting SurveyMonkey by pasted token or guided
   OAuth, choosing surveys and sync options, running the first sync, and
